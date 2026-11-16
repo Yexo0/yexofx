@@ -1,0 +1,8 @@
+YexoFX - bibliotheque de SFX
+=============================
+
+Un sous-dossier = une categorie affichee dans l'onglet Audio du panel
+(whoosh, impact, glitch, riser, click, bassdrop... ou tes propres dossiers).
+
+Formats acceptes : WAV, MP3, AIFF.
+Le pack de base libre de droits sera genere par tools/generate_sfx.py (livraison 5).

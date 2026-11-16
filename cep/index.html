@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YexoFX</title>
+<link rel="stylesheet" href="css/yexofx.css">
+<link rel="stylesheet" href="css/layout.css">
+</head>
+<body>
+<div class="panel app" id="panel">
+  <nav class="rail" id="rail" aria-label="Catégories">
+    <span class="rail-logo" id="headLogo"></span>
+    <div class="rail-cats" id="cats"></div>
+    <div class="rail-foot">
+      <button class="rail-btn" id="btnSettings" type="button" title="Réglages et outils"></button>
+      <span class="rail-status" id="status" title="État"><i></i></span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <header class="top">
+      <label class="search">
+        <span id="searchIco"></span>
+        <input id="q" type="search" placeholder="Rechercher un effet ou un son" autocomplete="off" aria-label="Rechercher un preset ou un son">
+        <kbd>/</kbd>
+      </label>
+      <button class="ctx-line" id="ctx" type="button" title="Comp active et sélection (clique pour rafraîchir)">connexion à After Effects…</button>
+    </header>
+
+    <div class="banner" id="banner" hidden></div>
+
+    <div class="p-scroll" id="scroll"><section id="view"></section></div>
+
+    <footer class="dock" id="dock">
+      <div class="dock-int">
+        <span class="label">Intensité</span>
+        <input class="range" id="intensity" type="range" min="0" max="200" step="5" value="100" aria-label="Intensité">
+        <output id="intensityV">100 %</output>
+      </div>
+      <button class="dock-curve" id="btnCurve" type="button" title="Courbe par défaut : clique pour l'éditer">
+        <svg viewBox="0 0 40 26" aria-hidden="true"><path id="dockCurve"/></svg>
+        <span id="curveV">Back</span>
+      </button>
+      <button class="ibtn sm" id="btnAuto" type="button" aria-pressed="true" title="Lecture auto des previews"></button>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sheet" id="sheet" hidden></div>
+
+  <div class="gate" id="gate" hidden>
+    <span id="gateLogo"></span>
+    <div>
+      <h2>Active Yexo<b>FX</b></h2>
+      <div class="cmd" style="margin-top:6px">yfx license --activate</div>
+    </div>
+    <div class="step"><b>1.</b> Envoie ton ID machine à Yexo (Discord Edits).</div>
+    <div class="mid"><code id="mid">…</code><button class="mini" type="button" id="midCopy">Copier</button></div>
+    <div class="step"><b>2.</b> Colle ici la clé que tu reçois.</div>
+    <form id="gateForm" novalidate>
+      <textarea class="key long" id="key" spellcheck="false" placeholder="YFX1.…" aria-label="Clé de licence" aria-describedby="keyErr"></textarea>
+      <div class="err" id="keyErr"></div>
+      <button class="btn primary" id="keyBtn" type="submit">Activer</button>
+    </form>
+    <div class="fine"><span class="cmd">clé liée à ce PC · vérifiée sans connexion</span></div>
+  </div>
+</div>
+
+<script src="js/pubkey.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/store.js"></script>
+<script src="js/bridge.js"></script>
+<script src="js/previews.js"></script>
+<script src="js/pvgen.js"></script>
+<script src="js/licence.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

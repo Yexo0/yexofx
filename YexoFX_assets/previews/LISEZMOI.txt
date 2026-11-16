@@ -1,0 +1,101 @@
+YexoFX - videos de preview
+================================
+
+Le plus simple : dans le panel, Reglages > Previews video > Generer.
+AE rend chaque preset dans une comp de demo (ou sur ton clip : selectionne-le et place le CTI sur le kill),
+puis ffmpeg compresse en <id>.webm (432x540, environ 150 Ko). Les comps de demo sont supprimees a la fin.
+
+Tes propres videos : depose-les ici, nommees avec l id du preset (ex. killhit.mp4 ou .mov),
+puis Reglages > Previews video > Convertir tes videos (format 4:5 recadre automatiquement, sans son).
+Une video <id>.webm passe toujours avant les autres.
+
+Ids des presets :
+
+[Impacts]
+  killhit       Kill Hit
+  shaketwitch   Shake + Twitch
+  rgbpunch      RGB Punch
+  hspop         Headshot Pop
+  bassdrop      Bass Drop
+  flicker       Flicker
+  choppy        Choppy Hit
+  glowhit       Glow Hit
+  lenspunch     Lens Punch
+  freezehit     Freeze Hit
+
+[Texte]
+  pop           Pop
+  slide         Slide
+  blur          Blur
+  type          Typewriter
+  glitch        Glitch
+  stomp         Stomp
+  feed          Kill Feed
+  flip          Flip 3D
+  track         Tracking
+  scramble      Scramble
+  wave          Wave
+  kin           Kinetic
+
+[Shake]
+  smooth        Smooth
+  hand          Handheld
+  twitchy       Twitchy
+  jumpy         Jumpy
+  impact        Impact
+  hor           Horizontal
+  ver           Vertical
+  rumble        Rumble
+  roll          Roll
+
+[Twitch]
+  tw-scale      Twitch Scale
+  tw-slide      Twitch Slide
+  tw-light      Twitch Light
+  tw-blur       Twitch Blur
+  tw-time       Twitch Time
+  tw-full       Twitch Full
+
+[Vitesse]
+  velocity      Velocity
+  slowkill      Slow Kill
+  speedup       Speed Up
+  freeze        Freeze
+  rewind        Rewind
+  posterize     Choppy
+  marker        Marker au CTI
+  beat          Beat sync
+  ease          Easing keys
+
+[Transitions]
+  zoom          Zoom in
+  zoomout       Zoom out
+  whip          Whip pan
+  spin          Spin
+  rgbshake      RGB Shake
+  whiteglitch   White Glitch
+  popin         Pop-in
+  stretch       Stretch
+  tflash        Flash
+
+[FX]
+  flash         Flash
+  grain         Grain
+  rgb           RGB léger
+  glow          Glow
+  vhs           VHS
+  vig           Vignette
+  letterbox     Letterbox
+  lens          Lens
+  leak          Light leak
+  cold          Froid
+  warm          Chaud
+  punchy        Punchy
+
+[Styles]
+  val           Valorant
+  cs2           CS2
+  neon          Néon
+  double        Double contour
+  grad          Gradient
+  glitchs       Glitch

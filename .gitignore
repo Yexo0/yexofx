@@ -1,0 +1,16 @@
+node_modules/
+
+# Clé privée de licence et licences émises : JAMAIS dans le repo (à transférer à la main, clé USB / gestionnaire de mots de passe)
+keys/yexofx_private.pem
+keys/*private*
+keys/licence_*.txt
+
+# Fichiers temporaires
+*.part.webm
+*.log
+.claude/settings.local.json
+
+# Tes clips sources (lourds) : seules les .webm générées sont versionnées
+YexoFX_assets/previews/*.mp4
+YexoFX_assets/previews/*.mov
+YexoFX_assets/previews/*.m4v

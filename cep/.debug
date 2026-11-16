@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Débogage du panel : ouvre http://localhost:8088 dans Chrome quand le panel est ouvert dans AE. -->
+<ExtensionList>
+  <Extension Id="com.yexo.yexofx.panel">
+    <HostList>
+      <Host Name="AEFT" Port="8088"/>
+    </HostList>
+  </Extension>
+</ExtensionList>

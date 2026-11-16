@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="256" height="256">
+  <!-- YexoFX : le Y de yexofps.org + deux échos qui le suivent (traînée de mouvement = FX) -->
+  <rect width="36" height="36" rx="11" fill="#c7bfff"/>
+  <g fill="none" stroke="#2a009f" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11.5 10.5 18 18.6l6.5-8.1M18 18.6v7.4" transform="translate(-3.2 0)" opacity=".16"/>
+    <path d="M11.5 10.5 18 18.6l6.5-8.1M18 18.6v7.4" transform="translate(-1.4 0)" opacity=".34"/>
+    <path d="M11.5 10.5 18 18.6l6.5-8.1M18 18.6v7.4" transform="translate(1.6 0)"/>
+  </g>
+</svg>

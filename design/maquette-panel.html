@@ -1,0 +1,1593 @@
+<title>YexoFX</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : scène sombre de yexofps.org ; le panel AE (largeur réglable) à gauche, les notes à droite, empilés sur mobile.
+   Volontairement un seul thème (sombre), comme After Effects.
+   CSS compatible avec le Chromium de CEP (AE 2025) : pas de :has(), color-mix(), container queries ni nesting. */
+:root {
+  --bg: #0e0e0f;
+  --surface: #1c1b1d;
+  --surface-2: #262527;
+  --surface-3: #353436;
+  --hover: #3c3b3d;
+  --inset: #141315;
+  --line: rgba(120, 118, 122, 0.22);
+  --line-strong: rgba(146, 144, 148, 0.38);
+  --text: #ebe7e9;
+  --muted: #c9c5ca;
+  --dim: #a29fa4;
+  --accent: #c7bfff;
+  --on-accent: #2a009f;
+  --accent-soft: rgba(199, 191, 255, 0.12);
+  --accent-mid: #8e7fff;
+  --accent-low: #5a48ce;
+  --glow: rgba(170, 160, 255, 0.32);
+  --ok: #8be3b0;
+  --err: #ff9c9c;
+  --val: #ff4655;
+  --cs: #f2a93b;
+  --cyan: #45e1ff;
+  --white: #ffffff;
+  --black: #000000;
+  --shade: rgba(14, 14, 15, 0.74);
+  --scene-1: #18151f;
+  --scene-2: #0c0b0f;
+  --scene-3: #1d1214;
+  --ae-1: #1d1d1d;
+  --ae-2: #252525;
+  --ae-line: #343434;
+  --ae-text: #9b9b9b;
+  --ae-focus: #2d7ff9;
+  --font-sans: "Geist", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px rgba(0, 0, 0, 0.28);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 14px/1.5 var(--font-sans); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 26px); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ico.fill { fill: currentColor; stroke: none; }
+.label { font: 500 10.5px/1.3 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.cmd { font: 400 11.5px/1.35 var(--font-mono); color: var(--dim); }
+
+/* ---------- scène ---------- */
+.stage { position: relative; max-width: 1140px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.stage-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand .logo { width: 46px; height: 46px; flex: none; }
+.brand h1 { margin: 0; font-size: 38px; font-weight: 700; letter-spacing: -0.045em; line-height: 0.95; }
+.brand h1 b { color: var(--accent); font-weight: 700; }
+.brand .cmd { margin-top: 6px; }
+.width-pick { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.seg, .chips { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; }
+.seg button, .chips button { font: 400 11.5px/1 var(--font-mono); color: var(--muted); background: none; border: 0; padding: 6px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.seg button:hover, .chips button:hover { color: var(--text); }
+.seg button[aria-pressed="true"], .chips button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.stage-body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 940px) { .stage-body { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- cadre After Effects ---------- */
+.ae { width: 420px; max-width: 100%; justify-self: center; background: var(--ae-1); border: 1px solid var(--ae-focus); border-radius: 4px; overflow: hidden; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.ae-bar { display: flex; align-items: center; gap: 14px; height: 27px; padding: 0 10px; background: var(--ae-2); border-bottom: 1px solid var(--ae-line); font: 12px/1 "Segoe UI", system-ui, sans-serif; color: var(--ae-text); white-space: nowrap; overflow: hidden; }
+.ae-bar .on { color: var(--text); display: inline-flex; gap: 8px; align-items: center; height: 100%; border-bottom: 2px solid var(--text); padding-top: 2px; }
+
+/* ---------- panel ---------- */
+.panel { position: relative; height: 800px; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; --k: 1; --loop: 1.6s; --ease: cubic-bezier(0.34, 1.56, 0.64, 1); --sc: 55ms; --sw: 0ms; }
+.p-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 10px; }
+.p-head .logo { width: 30px; height: 30px; flex: none; }
+.p-title { flex: 1; min-width: 0; }
+.wm { display: flex; align-items: center; gap: 7px; font-size: 18px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; }
+.wm b { color: var(--accent); font-weight: 700; }
+.ver { font: 400 10px/1 var(--font-mono); letter-spacing: 0; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; }
+.p-title .cmd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ibtn { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.ibtn:hover { background: var(--surface-2); color: var(--text); }
+.ibtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: rgba(199, 191, 255, 0.35); }
+.ctx { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font: 400 11px/1 var(--font-mono); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+button.pill { cursor: pointer; }
+button.pill:hover { border-color: var(--line-strong); color: var(--text); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); flex: none; }
+.dot.off { background: var(--err); box-shadow: 0 0 8px var(--err); }
+.search { position: relative; display: block; margin: 0 14px 10px; }
+.search .ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--dim); }
+.search input { width: 100%; height: 36px; padding: 0 34px; border-radius: 12px; border: 1px solid var(--line); background: var(--inset); color: var(--text); font: 400 12.5px var(--font-mono); outline: none; }
+.search input::placeholder { color: var(--dim); }
+.search input:focus { border-color: rgba(199, 191, 255, 0.5); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search kbd { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); font: 400 10.5px var(--font-mono); color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.cats { display: flex; gap: 2px; margin: 0 14px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); overflow-x: auto; scrollbar-width: none; }
+.cats::-webkit-scrollbar { display: none; }
+.cats button { flex: none; display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 500; padding: 6px 11px; border-radius: 999px; cursor: pointer; }
+.cats button:hover { color: var(--text); }
+.cats button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
+.cats sup { font: 400 9.5px var(--font-mono); color: var(--dim); top: -0.35em; }
+
+/* réglages globaux (repliables) */
+.tune { margin: 10px 14px 0; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.tune-sum { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: none; border: 0; cursor: pointer; text-align: left; }
+.tune-sum .vals { flex: 1; min-width: 0; font: 400 11.5px var(--font-mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tune-sum .chev { transition: transform 0.2s; color: var(--dim); }
+.tune[data-open="true"] .chev { transform: rotate(180deg); }
+.tune-body { display: none; padding: 2px 12px 12px; gap: 12px; flex-direction: column; }
+.tune[data-open="true"] .tune-body { display: flex; }
+.trow { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.trow .v { font: 500 12px var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.range { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 99px; background: linear-gradient(90deg, var(--accent) 0 var(--p, 50%), var(--surface-3) var(--p, 50%) 100%); outline: none; }
+.range::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent), 0 0 12px var(--glow); cursor: pointer; }
+.range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); cursor: pointer; }
+.curves { display: flex; gap: 4px; flex-wrap: wrap; }
+.cbtn { width: 44px; height: 32px; padding: 0; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--inset); color: var(--dim); cursor: pointer; }
+.cbtn svg { width: 38px; height: 24px; overflow: visible; }
+.cbtn path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.cbtn[aria-pressed="true"] { border-color: rgba(199, 191, 255, 0.55); background: var(--accent-soft); color: var(--accent); }
+.cbtn.edit { width: auto; padding: 0 10px; font: 500 11px var(--font-mono); color: var(--muted); display: inline-flex; gap: 5px; align-items: center; }
+.cbtn.edit:hover { color: var(--text); border-color: var(--line-strong); }
+.hint { font: 400 10.5px/1.4 var(--font-mono); color: var(--dim); }
+
+/* zone qui défile */
+.p-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 18px; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+.p-scroll::-webkit-scrollbar { width: 8px; }
+.p-scroll::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 8px; border: 2px solid var(--bg); }
+.sec-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 8px; }
+.sec-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 999px; background: var(--surface-2); color: var(--muted); flex: none; }
+.sec-head h2 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.2; }
+.sec-head .grow { flex: 1; min-width: 0; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 0 14px 4px; }
+.filters .chips { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.filters .chips::-webkit-scrollbar { display: none; }
+.chips button { padding: 5px 9px; }
+
+/* ---------- grille de presets ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 10px; padding: 8px 14px 4px; }
+.tile { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 6px; transition: border-color 0.15s, transform 0.15s; }
+.tile:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.hit { position: absolute; inset: 0; z-index: 5; width: 100%; padding: 0; border: 0; background: transparent; border-radius: 16px; cursor: pointer; }
+.pvbox { position: relative; }
+.meta { padding: 7px 28px 3px 4px; min-height: 44px; }
+.meta .nm { font-size: 13.5px; font-weight: 600; line-height: 1.2; }
+.meta .sb { font: 400 10.5px/1.35 var(--font-mono); color: var(--dim); margin-top: 2px; }
+.more { position: absolute; right: 6px; bottom: 10px; z-index: 7; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; border: 0; background: none; color: var(--dim); cursor: pointer; }
+.more:hover { background: var(--surface-2); color: var(--text); }
+.star { position: absolute; top: 6px; right: 6px; z-index: 7; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 999px; border: 0; background: var(--shade); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; }
+.star .ico { width: 14px; height: 14px; }
+.tile:hover .star, .tile:focus-within .star, .star[aria-pressed="true"] { opacity: 1; }
+.star[aria-pressed="true"] { color: var(--accent); }
+.star[aria-pressed="true"] .ico { fill: currentColor; }
+.durctl { pointer-events: none; position: absolute; left: 7px; bottom: 7px; z-index: 7; display: flex; align-items: center; gap: 1px; padding: 2px; border-radius: 8px; background: var(--shade); font: 500 10px/1 var(--font-mono); color: var(--muted); }
+.durctl span { padding: 3px 4px; font-variant-numeric: tabular-nums; }
+.durctl button { pointer-events: auto; display: none; width: 18px; height: 18px; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; font: 600 12px/1 var(--font-mono); }
+.tile:hover .durctl button, .tile:focus-within .durctl button { display: grid; }
+.durctl button:hover { background: var(--surface-3); }
+.durctl.custom span { color: var(--accent); }
+.mark-c { pointer-events: none; position: absolute; left: 7px; top: 7px; z-index: 7; font: 500 9.5px/1 var(--font-mono); color: var(--on-accent); background: var(--accent); border-radius: 6px; padding: 3px 5px; }
+
+/* aperçu (vignette) */
+.pv { position: relative; aspect-ratio: 1 / 1; max-width: 100%; border-radius: 11px; overflow: hidden; background: var(--scene-2); isolation: isolate; }
+.pv .br, .pv::before, .pv::after, .pv .br::before, .pv .br::after { pointer-events: none; }
+.pv::before, .pv::after, .pv .br::before, .pv .br::after { content: ""; position: absolute; width: 11px; height: 11px; border: 0 solid rgba(255, 255, 255, 0.75); opacity: 0.45; transition: opacity 0.2s; z-index: 8; }
+.pv::before { top: 7px; left: 7px; border-top-width: 1.5px; border-left-width: 1.5px; }
+.pv::after { top: 7px; right: 7px; border-top-width: 1.5px; border-right-width: 1.5px; }
+.pv .br { position: absolute; inset: 0; z-index: 8; }
+.pv .br::before { bottom: 7px; left: 7px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.pv .br::after { bottom: 7px; right: 7px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+.tile:hover .pv::before, .tile:hover .pv::after, .tile:hover .pv .br::before, .tile:hover .pv .br::after { opacity: 1; }
+.state { position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(14, 14, 15, 0.55); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.state .ring { width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid var(--surface-3); border-top-color: var(--accent); animation: spin 0.7s linear infinite; }
+.state .ok { display: none; width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: var(--on-accent); place-items: center; }
+.state .ok .ico { width: 20px; height: 20px; stroke-width: 2.4; }
+.tile.applying .state, .tile.done .state { opacity: 1; }
+.tile.done .state .ring { display: none; }
+.tile.done .state .ok { display: grid; animation: okpop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes okpop { from { transform: scale(0.4); } to { transform: scale(1); } }
+
+/* fond de scène (évoque une map, réticule au centre) */
+.bgl { position: absolute; inset: 0; background: radial-gradient(circle at 28% 22%, rgba(142, 127, 255, 0.42), transparent 58%), radial-gradient(circle at 82% 88%, rgba(255, 70, 85, 0.26), transparent 52%), linear-gradient(160deg, var(--scene-1), var(--scene-2)); }
+.bgl.b { background: radial-gradient(circle at 75% 25%, rgba(255, 70, 85, 0.38), transparent 55%), radial-gradient(circle at 15% 85%, rgba(242, 169, 59, 0.2), transparent 50%), linear-gradient(200deg, var(--scene-3), var(--scene-2)); }
+.bgl.c { background: radial-gradient(circle at 50% 30%, rgba(199, 191, 255, 0.22), transparent 60%), linear-gradient(180deg, var(--scene-1), var(--scene-2)); }
+.bgl::before { content: ""; position: absolute; left: -20%; right: -20%; bottom: 0; height: 46%; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 22px); transform: perspective(120px) rotateX(58deg); transform-origin: bottom; opacity: 0.6; }
+.xh { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; transform: translate(-50%, -50%); opacity: 0.85; z-index: 2; }
+.xh::before, .xh::after { content: ""; position: absolute; background: var(--white); }
+.xh::before { left: 6px; top: 0; width: 2px; height: 14px; clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%, 0 65%, 100% 65%, 100% 100%, 0 100%); }
+.xh::after { top: 6px; left: 0; height: 2px; width: 14px; clip-path: polygon(0 0, 35% 0, 35% 100%, 0 100%, 0 0, 65% 0, 100% 0, 100% 100%, 65% 100%); }
+.word { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font: 800 34px/1 var(--font-sans); letter-spacing: -0.02em; color: var(--white); white-space: nowrap; z-index: 2; }
+.word.md { font-size: 24px; }
+.word.sm { font-size: 18px; top: 68%; }
+.word .ch { display: inline-block; }
+.word .sp { display: inline-block; width: 0.28em; }
+.tagmap { position: absolute; left: 9px; top: 9px; z-index: 3; font: 500 9.5px/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
+.cam, .layer { position: absolute; inset: -10%; }
+.layer { inset: 0; }
+.ov { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+
+/* lecture : auto, ou au survol seulement */
+.grid.hover-only .tile:not(:hover):not(:focus-within) .pv *,
+.grid.hover-only .tile:not(:hover):not(:focus-within) .pv *::before,
+.grid.hover-only .tile:not(:hover):not(:focus-within) .pv *::after { animation: none !important; }
+
+/* ===== impacts ===== */
+.c-impact, .c-killhit { animation: k-impact var(--loop) linear infinite; }
+@keyframes k-impact { 0%, 100% { transform: none; } 2% { transform: translate(calc(-13px * var(--k)), calc(8px * var(--k))) rotate(calc(-2deg * var(--k))) scale(1.05); } 5% { transform: translate(calc(10px * var(--k)), calc(-6px * var(--k))) rotate(calc(1.5deg * var(--k))) scale(1.03); } 8% { transform: translate(calc(-7px * var(--k)), calc(4px * var(--k))) rotate(calc(-1deg * var(--k))); } 11% { transform: translate(calc(4px * var(--k)), calc(-3px * var(--k))); } 14% { transform: translate(calc(-2px * var(--k)), calc(1px * var(--k))); } 18% { transform: none; } }
+.spike { animation: k-spike var(--loop) linear infinite; }
+@keyframes k-spike { 0%, 100% { text-shadow: none; } 2% { text-shadow: calc(-6px * var(--k)) 0 0 var(--val), calc(6px * var(--k)) 0 0 var(--cyan); } 9% { text-shadow: calc(-2px * var(--k)) 0 0 var(--val), calc(2px * var(--k)) 0 0 var(--cyan); } 14% { text-shadow: none; } }
+.spike.long { animation-name: k-spike2; }
+@keyframes k-spike2 { 0%, 100% { text-shadow: none; } 3% { text-shadow: calc(-9px * var(--k)) 0 0 var(--val), calc(9px * var(--k)) 0 0 var(--cyan); } 30% { text-shadow: none; } }
+.ov-hit { background: var(--white); mix-blend-mode: screen; opacity: 0; animation: k-hit var(--loop) ease-out infinite; }
+@keyframes k-hit { 0%, 100% { opacity: 0; } 2% { opacity: calc(0.3 + 0.3 * var(--k)); } 9% { opacity: 0; } }
+.ov-hit.late { animation-name: k-hitlate; }
+@keyframes k-hitlate { 0%, 73%, 100% { opacity: 0; } 75% { opacity: calc(0.4 + 0.3 * var(--k)); } 84% { opacity: 0; } }
+.tw-sc { position: absolute; inset: 0; animation: k-twsc var(--loop) steps(1, end) infinite; }
+@keyframes k-twsc { 0%, 100% { transform: none; } 4% { transform: scale(calc(1 + 0.14 * var(--k))); } 7% { transform: scale(calc(1 - 0.06 * var(--k))) translateX(4px); } 10% { transform: scale(calc(1 + 0.09 * var(--k))); } 13% { transform: none; } }
+.c-rgbpunch, .c-hspop, .c-lens { animation: k-zpunch var(--loop) var(--ease) infinite; }
+@keyframes k-zpunch { 0%, 100% { transform: none; filter: none; } 3% { transform: scale(calc(1 + 0.22 * var(--k))); filter: blur(1.2px); } 34% { transform: none; filter: none; } }
+.c-hspop { animation-name: k-hspop; }
+@keyframes k-hspop { 0%, 100% { transform: none; filter: none; } 4% { transform: scale(calc(1 + 0.4 * var(--k))); filter: blur(2.5px); } 30% { transform: none; filter: none; } }
+.c-lens { animation-name: k-lens; }
+@keyframes k-lens { 0%, 100% { transform: none; border-radius: 0; } 4% { transform: scale(calc(1 + 0.16 * var(--k))); border-radius: 30%; } 30% { transform: none; border-radius: 0; } }
+.ov-lens { background: radial-gradient(circle at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.85) 100%); opacity: 0; animation: k-lensov var(--loop) ease-out infinite; }
+@keyframes k-lensov { 0%, 100% { opacity: 0; } 4% { opacity: 1; } 30% { opacity: 0; } }
+.c-bass { animation: k-bass var(--loop) linear infinite; }
+@keyframes k-bass { 0%, 100% { transform: none; filter: none; } 2% { transform: translateY(calc(-20px * var(--k))) scale(1.05); filter: brightness(2); } 5% { transform: translateY(calc(16px * var(--k))) scale(1.04); filter: brightness(1.6); } 8% { transform: translateY(calc(-11px * var(--k))); filter: brightness(1.3); } 11% { transform: translateY(calc(7px * var(--k))); } 14% { transform: translateY(calc(-4px * var(--k))); } 18% { transform: translateY(calc(2px * var(--k))); filter: none; } 24% { transform: none; } }
+.ov-strobe { background: var(--white); mix-blend-mode: screen; opacity: 0; animation: k-strobe var(--loop) steps(1, end) infinite; }
+@keyframes k-strobe { 0% { opacity: 0.8; } 3% { opacity: 0; } 6% { opacity: 0.7; } 9% { opacity: 0; } 12% { opacity: 0.55; } 15%, 100% { opacity: 0; } }
+.c-choppy { animation: k-chop var(--loop) steps(1, end) infinite; }
+@keyframes k-chop { 0%, 100% { transform: none; } 5% { transform: translate(-6px, 3px); } 10% { transform: translate(5px, -4px); } 15% { transform: translate(-4px, 2px); } 20% { transform: translate(3px, 2px); } 25% { transform: translate(-2px, -1px); } 30% { transform: translate(1px, 1px); } 35% { transform: none; } }
+.glowspike { animation: k-glowspike var(--loop) ease-out infinite; }
+@keyframes k-glowspike { 0%, 100% { text-shadow: 0 0 3px var(--accent); } 3% { text-shadow: 0 0 calc(10px * var(--k)) var(--white), 0 0 calc(30px * var(--k)) var(--accent), 0 0 calc(70px * var(--k)) var(--accent-mid); } 40% { text-shadow: 0 0 3px var(--accent); } }
+.ov-bloom { background: radial-gradient(circle at 50% 62%, rgba(199, 191, 255, 0.6), transparent 60%); mix-blend-mode: screen; opacity: 0; animation: k-bloom var(--loop) ease-out infinite; }
+@keyframes k-bloom { 0%, 100% { opacity: 0; } 3% { opacity: calc(0.5 + 0.4 * var(--k)); } 40% { opacity: 0; } }
+.c-freeze { animation: k-freeze var(--loop) linear infinite; }
+@keyframes k-freeze { 0% { transform: translateX(8%); filter: none; } 34% { transform: translateX(-2%) scale(1); filter: none; } 35% { filter: saturate(0.2) contrast(1.15); } 74% { transform: translateX(-2%) scale(1.07); filter: saturate(0.2) contrast(1.15); } 75% { transform: translateX(-2%) scale(1); filter: none; } 100% { transform: translateX(-12%); filter: none; } }
+
+/* ===== shakes (la caméra déborde de 10 % : c'est ce que fait Motion Tile) ===== */
+.c-smooth { animation: k-smooth 4.6s ease-in-out infinite; }
+@keyframes k-smooth { 0%, 100% { transform: translate(0, 0) rotate(0); filter: blur(0); } 20% { transform: translate(calc(5px * var(--k)), calc(-3px * var(--k))) rotate(calc(0.7deg * var(--k))); filter: blur(0.6px); } 40% { transform: translate(calc(-4px * var(--k)), calc(2px * var(--k))) rotate(calc(-0.5deg * var(--k))); filter: blur(0); } 60% { transform: translate(calc(2px * var(--k)), calc(5px * var(--k))) rotate(calc(0.4deg * var(--k))); filter: blur(0.6px); } 80% { transform: translate(calc(-5px * var(--k)), calc(-1px * var(--k))) rotate(calc(-0.7deg * var(--k))); filter: blur(0); } }
+.c-hand { animation: k-hand 0.9s ease-in-out infinite; }
+@keyframes k-hand { 0%, 100% { transform: none; } 25% { transform: translate(calc(2px * var(--k)), calc(-1.5px * var(--k))) rotate(calc(0.3deg * var(--k))); } 50% { transform: translate(calc(-1.5px * var(--k)), calc(1px * var(--k))); } 75% { transform: translate(calc(1px * var(--k)), calc(2px * var(--k))) rotate(calc(-0.3deg * var(--k))); } }
+.c-twitchy { animation: k-twitchy 2.4s linear infinite; }
+@keyframes k-twitchy { 0%, 30%, 37%, 60%, 67%, 100% { transform: none; } 31% { transform: translate(calc(-6px * var(--k)), calc(3px * var(--k))); } 33% { transform: translate(calc(5px * var(--k)), calc(-4px * var(--k))) rotate(calc(1deg * var(--k))); } 35% { transform: translate(calc(-3px * var(--k)), calc(2px * var(--k))); } 61% { transform: translate(calc(4px * var(--k)), calc(3px * var(--k))); } 63% { transform: translate(calc(-5px * var(--k)), calc(-2px * var(--k))) rotate(calc(-1deg * var(--k))); } 65% { transform: translate(calc(2px * var(--k)), calc(-1px * var(--k))); } }
+.c-jumpy { animation: k-jumpy 3s ease-in-out infinite; }
+@keyframes k-jumpy { 0%, 100% { transform: none; } 20% { transform: translate(calc(3px * var(--k)), calc(-2px * var(--k))); } 21% { transform: translate(calc(-9px * var(--k)), calc(6px * var(--k))); } 22% { transform: translate(calc(6px * var(--k)), calc(-4px * var(--k))); } 24% { transform: translate(calc(2px * var(--k)), calc(-1px * var(--k))); } 55% { transform: translate(calc(-2px * var(--k)), calc(2px * var(--k))); } 56% { transform: translate(calc(9px * var(--k)), calc(-7px * var(--k))); } 57% { transform: translate(calc(-5px * var(--k)), calc(3px * var(--k))); } 59% { transform: translate(calc(-1px * var(--k)), calc(1px * var(--k))); } }
+.c-hor { animation: k-hor var(--loop) linear infinite; }
+@keyframes k-hor { 0%, 100% { transform: none; } 2% { transform: translateX(calc(-14px * var(--k))); } 5% { transform: translateX(calc(11px * var(--k))); } 8% { transform: translateX(calc(-7px * var(--k))); } 11% { transform: translateX(calc(4px * var(--k))); } 14% { transform: translateX(calc(-2px * var(--k))); } 18% { transform: none; } }
+.c-ver { animation: k-ver var(--loop) linear infinite; }
+@keyframes k-ver { 0%, 100% { transform: none; } 2% { transform: translateY(calc(-14px * var(--k))); } 5% { transform: translateY(calc(11px * var(--k))); } 8% { transform: translateY(calc(-7px * var(--k))); } 11% { transform: translateY(calc(4px * var(--k))); } 14% { transform: translateY(calc(-2px * var(--k))); } 18% { transform: none; } }
+.c-rumble { animation: k-rumble 0.11s linear infinite alternate; }
+@keyframes k-rumble { from { transform: translate(calc(-0.8px * var(--k)), calc(-1.6px * var(--k))); } to { transform: translate(calc(0.8px * var(--k)), calc(1.6px * var(--k))); } }
+.c-roll { animation: k-roll 3.2s ease-in-out infinite alternate; }
+@keyframes k-roll { from { transform: rotate(calc(-2.4deg * var(--k))); } to { transform: rotate(calc(2.4deg * var(--k))); } }
+.ring-imp { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 2px solid var(--accent); z-index: 3; opacity: 0; animation: k-ring var(--loop) ease-out infinite; }
+@keyframes k-ring { 0% { transform: scale(0.2); opacity: 0.9; } 16% { transform: scale(1.7); opacity: 0; } 100% { opacity: 0; } }
+
+/* ===== twitch (sauts aléatoires, synchronisés) ===== */
+.c-twsl { animation: k-twsl var(--loop) steps(1, end) infinite; }
+@keyframes k-twsl { 0%, 100% { transform: none; filter: none; } 3% { transform: translateX(calc(14px * var(--k))); filter: blur(1.5px); } 6% { transform: translateX(calc(-9px * var(--k))); filter: blur(1px); } 9% { transform: translateX(calc(6px * var(--k))); filter: none; } 12% { transform: none; } }
+.c-twl { animation: k-twl var(--loop) steps(1, end) infinite; }
+@keyframes k-twl { 0%, 100% { filter: none; } 3% { filter: brightness(calc(1 + 1.2 * var(--k))); } 6% { filter: brightness(0.45); } 9% { filter: brightness(calc(1 + 0.8 * var(--k))); } 12% { filter: none; } }
+.c-twbl { animation: k-twbl var(--loop) steps(1, end) infinite; }
+@keyframes k-twbl { 0%, 100% { filter: none; } 3% { filter: blur(calc(4px * var(--k))); } 6% { filter: none; } 9% { filter: blur(calc(2.5px * var(--k))); } 12% { filter: none; } }
+.runner { position: absolute; top: 40%; left: 0; width: 16px; height: 16px; margin-left: -8px; background: var(--val); transform: rotate(45deg); box-shadow: 0 0 14px var(--val); border-radius: 3px; z-index: 2; }
+.r-twtime { animation: k-twtime 2.4s linear infinite; }
+@keyframes k-twtime { 0% { left: 6%; } 30% { left: 38%; } 30.5% { left: 24%; } 50% { left: 46%; } 50.5% { left: 64%; } 70% { left: 72%; } 70.5% { left: 58%; } 100% { left: 92%; } }
+
+/* ===== vitesse ===== */
+.r-velocity { animation: k-vel var(--loop) linear infinite; }
+@keyframes k-vel { 0% { left: -6%; } 22% { left: 38%; } 72% { left: 50%; } 100% { left: 106%; } }
+.r-slowkill { animation: k-slowk var(--loop) linear infinite; }
+@keyframes k-slowk { 0% { left: -6%; } 28% { left: 44%; } 100% { left: 62%; } }
+.r-speedup { animation: k-up var(--loop) linear infinite; }
+@keyframes k-up { 0% { left: -6%; } 65% { left: 30%; } 100% { left: 106%; } }
+.r-freeze { animation: k-frz var(--loop) linear infinite; }
+@keyframes k-frz { 0% { left: -6%; } 40%, 72% { left: 48%; } 100% { left: 106%; } }
+.ov-frz { border: 2px solid var(--accent); opacity: 0; animation: k-frzov var(--loop) steps(1, end) infinite; }
+@keyframes k-frzov { 0%, 100% { opacity: 0; } 40% { opacity: 1; } 72% { opacity: 0; } }
+.r-rewind { animation: k-rew var(--loop) linear infinite; }
+@keyframes k-rew { 0% { left: -6%; } 50% { left: 74%; } 66% { left: 24%; } 100% { left: 74%; } }
+.ov-rew { opacity: 0; animation: k-rewov var(--loop) steps(1, end) infinite; }
+@keyframes k-rewov { 0%, 100% { opacity: 0; } 50% { opacity: 1; } 66% { opacity: 0; } }
+.r-posterize { animation: k-post var(--loop) steps(8) infinite; }
+@keyframes k-post { from { left: -6%; } to { left: 106%; } }
+.spd { position: absolute; right: 8px; top: 8px; width: 50px; height: 30px; z-index: 5; background: var(--shade); border-radius: 7px; padding: 3px; }
+.spd path { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.spd line { stroke: var(--line-strong); stroke-width: 0.8; stroke-dasharray: 2 2; }
+
+/* ===== anims de texte ===== */
+.w-pop .ch, .w-slide .ch, .w-blur .ch, .w-flip .ch, .w-wave .ch, .w-kin .ch, .w-stomp .ch { animation-duration: var(--loop); animation-timing-function: var(--ease); animation-iteration-count: infinite; animation-fill-mode: both; animation-delay: calc(var(--i) * var(--sc) + var(--w) * var(--sw)); }
+.out .w-pop .ch, .out .w-slide .ch, .out .w-blur .ch, .out .w-flip .ch, .out .w-kin .ch, .out .w-stomp .ch, .out .w-track, .out .feed { animation-direction: reverse; }
+.w-pop .ch { animation-name: k-pop; transform-origin: 50% 85%; }
+@keyframes k-pop { 0% { transform: scale(0); opacity: 0; } 5% { opacity: 1; } 30% { transform: scale(1); } 80% { transform: scale(1); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.8, 0.2); } 92%, 100% { transform: scale(0); opacity: 0; } }
+.w-slide { overflow: hidden; padding: 0.06em 0; }
+.w-slide .ch { animation-name: k-slide; }
+@keyframes k-slide { 0% { transform: translateY(calc(70% + 50% * var(--k))); opacity: 0; } 6% { opacity: 1; } 30% { transform: translateY(0); } 80% { transform: translateY(0); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.8, 0.2); } 92%, 100% { transform: translateY(calc(-70% - 50% * var(--k))); opacity: 0; } }
+.w-blur .ch { animation-name: k-blur; }
+@keyframes k-blur { 0% { filter: blur(calc(4px + 9px * var(--k))); opacity: 0; transform: scale(1.15); } 32% { filter: blur(0); opacity: 1; transform: scale(1); } 80% { filter: blur(0); opacity: 1; transform: scale(1); animation-timing-function: ease-in; } 94%, 100% { filter: blur(calc(4px + 9px * var(--k))); opacity: 0; transform: scale(1.1); } }
+.w-flip { perspective: 260px; }
+.w-flip .ch { animation-name: k-flip; transform-origin: 50% 100%; backface-visibility: hidden; }
+@keyframes k-flip { 0% { transform: rotateX(-95deg); opacity: 0; } 8% { opacity: 1; } 32% { transform: rotateX(0); } 80% { transform: rotateX(0); opacity: 1; animation-timing-function: ease-in; } 94%, 100% { transform: rotateX(95deg); opacity: 0; } }
+.w-wave .ch { animation-name: k-wave; animation-duration: 1.3s; animation-timing-function: ease-in-out; animation-delay: calc(var(--i) * 90ms); }
+@keyframes k-wave { 0%, 100% { transform: translateY(0) scaleY(1); } 25% { transform: translateY(calc(-14% * var(--k))) scaleY(1.06); } 75% { transform: translateY(calc(12% * var(--k))) scaleY(0.95); } }
+.w-kin .ch { animation-name: k-kin; animation-delay: calc(var(--w) * 380ms); }
+@keyframes k-kin { 0%, 4% { transform: scale(0); opacity: 0; } 14% { transform: scale(calc(1 + 0.35 * var(--k))); opacity: 1; } 22% { transform: scale(1); } 82% { transform: scale(1); opacity: 1; } 90%, 100% { transform: scale(1); opacity: 0; } }
+.w-stomp .ch { animation-name: k-stomp; }
+@keyframes k-stomp { 0% { transform: translateY(-160%) scale(1.3); opacity: 0; animation-timing-function: cubic-bezier(0.6, 0, 1, 1); } 18% { transform: translateY(0) scale(1); opacity: 1; animation-timing-function: ease-out; } 22% { transform: translateY(5%) scale(1.08, 0.86); } 30% { transform: none; } 82% { transform: none; opacity: 1; } 92%, 100% { transform: none; opacity: 0; } }
+.c-stomp { animation: k-stompcam var(--loop) linear infinite; }
+@keyframes k-stompcam { 0%, 17%, 34%, 100% { transform: none; } 19% { transform: translateY(calc(7px * var(--k))); } 22% { transform: translateY(calc(-5px * var(--k))); } 25% { transform: translateY(calc(3px * var(--k))); } 28% { transform: translateY(calc(-1px * var(--k))); } }
+.w-track { animation: k-track var(--loop) var(--ease) infinite both; }
+@keyframes k-track { 0% { letter-spacing: 0.7em; opacity: 0; filter: blur(5px); } 34% { letter-spacing: -0.02em; opacity: 1; filter: blur(0); } 80% { letter-spacing: -0.02em; opacity: 1; filter: blur(0); } 94%, 100% { letter-spacing: 0.7em; opacity: 0; filter: blur(5px); } }
+.w-glitch .ch { animation: k-jit 0.9s steps(1) infinite; animation-delay: calc(var(--i) * -0.23s); }
+@keyframes k-jit { 0%, 100% { transform: none; } 12% { transform: translate(calc(3px * var(--k)), calc(-2px * var(--k))); } 14% { transform: none; } 55% { transform: translate(calc(-4px * var(--k)), calc(2px * var(--k))); } 58% { transform: none; } 80% { transform: translateX(calc(2px * var(--k))); } 82% { transform: none; } }
+.w-glitch::before, .w-glitch::after { content: attr(data-text); position: absolute; inset: 0; mix-blend-mode: screen; pointer-events: none; }
+.w-glitch::before { color: var(--val); animation: k-gla 1.1s steps(1) infinite; }
+.w-glitch::after { color: var(--cyan); animation: k-glb 1.1s steps(1) infinite; }
+@keyframes k-gla { 0%, 100% { transform: translateX(calc(-3px * var(--k))); clip-path: inset(0 0 60% 0); } 20% { transform: translateX(calc(4px * var(--k))); clip-path: inset(40% 0 20% 0); } 45% { transform: translateX(calc(-2px * var(--k))); clip-path: inset(70% 0 0 0); } 70% { transform: none; clip-path: inset(0 0 100% 0); } }
+@keyframes k-glb { 0%, 100% { transform: translateX(calc(3px * var(--k))); clip-path: inset(55% 0 0 0); } 25% { transform: translateX(calc(-4px * var(--k))); clip-path: inset(10% 0 55% 0); } 50% { transform: translateX(calc(2px * var(--k))); clip-path: inset(0 0 80% 0); } 75% { transform: none; clip-path: inset(0 0 100% 0); } }
+.caret { display: inline-block; width: 0.08em; height: 0.9em; margin-left: 0.05em; vertical-align: -0.08em; background: var(--accent); animation: blink 0.8s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.feed { position: absolute; right: 8%; top: 24%; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: rgba(14, 14, 15, 0.8); border-right: 3px solid var(--val); font: 700 11px/1 var(--font-sans); color: var(--white); white-space: nowrap; animation: k-feed var(--loop) var(--ease) infinite both; }
+.feed i { width: 16px; height: 6px; background: var(--muted); clip-path: polygon(0 30%, 70% 30%, 70% 0, 100% 50%, 70% 100%, 70% 70%, 0 70%); }
+.feed span { color: var(--val); }
+@keyframes k-feed { 0% { transform: translateX(160%); opacity: 0; } 6% { opacity: 1; } 28% { transform: none; } 80% { transform: none; opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.8, 0.2); } 92%, 100% { transform: translateX(160%); opacity: 0; } }
+
+/* ===== transitions (plan A -> plan B) ===== */
+.sh { position: absolute; inset: 0; }
+.sh .tagmap { top: auto; bottom: 9px; left: auto; right: 9px; }
+.t-zoom.a, .t-zoomout.a, .t-spin.a { animation: k-za var(--loop) ease-in infinite; }
+.t-zoom.b { animation: k-zb var(--loop) var(--ease) infinite; }
+@keyframes k-za { 0%, 36% { transform: scale(1); filter: blur(0); opacity: 1; } 48% { transform: scale(calc(1.4 + 0.5 * var(--k))); filter: blur(6px); opacity: 1; } 49%, 100% { opacity: 0; } }
+@keyframes k-zb { 0%, 48% { opacity: 0; transform: scale(0.6); filter: blur(6px); } 49% { opacity: 1; transform: scale(0.6); filter: blur(6px); } 64% { transform: scale(1); filter: blur(0); } 100% { opacity: 1; transform: scale(1); } }
+.t-zoomout.a { animation-name: k-zoa; }
+.t-zoomout.b { animation: k-zob var(--loop) var(--ease) infinite; }
+@keyframes k-zoa { 0%, 36% { transform: scale(1); filter: blur(0); opacity: 1; } 48% { transform: scale(0.55); filter: blur(6px); opacity: 1; } 49%, 100% { opacity: 0; } }
+@keyframes k-zob { 0%, 48% { opacity: 0; transform: scale(1.7); filter: blur(6px); } 49% { opacity: 1; transform: scale(1.7); filter: blur(6px); } 64% { transform: scale(1); filter: blur(0); } 100% { opacity: 1; transform: scale(1); } }
+.t-whip.a { animation: k-wa var(--loop) cubic-bezier(0.7, 0, 0.9, 0.4) infinite; }
+.t-whip.b { animation: k-wb var(--loop) cubic-bezier(0.1, 0.7, 0.2, 1) infinite; }
+@keyframes k-wa { 0%, 38% { transform: translateX(0); filter: blur(0); } 48% { transform: translateX(-110%); filter: blur(8px); } 49%, 100% { transform: translateX(-110%); opacity: 0; } }
+@keyframes k-wb { 0%, 48% { transform: translateX(110%); filter: blur(8px); } 60% { transform: translateX(0); filter: blur(0); } 100% { transform: translateX(0); } }
+.t-spin.a { animation-name: k-sa; }
+.t-spin.b { animation: k-sb var(--loop) var(--ease) infinite; }
+@keyframes k-sa { 0%, 36% { transform: none; filter: blur(0); opacity: 1; } 48% { transform: rotate(150deg) scale(1.6); filter: blur(5px); opacity: 1; } 49%, 100% { opacity: 0; } }
+@keyframes k-sb { 0%, 48% { opacity: 0; } 49% { opacity: 1; transform: rotate(-150deg) scale(1.6); filter: blur(5px); } 64% { transform: none; filter: blur(0); } 100% { opacity: 1; transform: none; } }
+.t-whiteglitch.a { animation: k-ga var(--loop) steps(1) infinite; }
+.t-whiteglitch.b { animation: k-gb var(--loop) steps(1) infinite; }
+@keyframes k-ga { 0%, 40% { clip-path: inset(0); transform: none; } 42% { clip-path: inset(10% 0 55% 0); transform: translateX(8px); } 44% { clip-path: inset(50% 0 10% 0); transform: translateX(-10px); } 46% { clip-path: inset(0 0 70% 0); transform: translateX(6px); } 48%, 100% { clip-path: inset(0 0 100% 0); } }
+@keyframes k-gb { 0%, 41% { clip-path: inset(0 0 100% 0); } 43% { clip-path: inset(60% 0 0 0); transform: translateX(-8px); } 45% { clip-path: inset(0 0 45% 0); transform: translateX(10px); } 47% { clip-path: inset(30% 0 30% 0); transform: translateX(-4px); } 49%, 100% { clip-path: inset(0); transform: none; } }
+.t-tflash.a { animation: k-fa var(--loop) steps(1) infinite; }
+.t-tflash.b { animation: k-fb var(--loop) steps(1) infinite; }
+@keyframes k-fa { 0%, 46% { opacity: 1; } 47%, 100% { opacity: 0; } }
+@keyframes k-fb { 0%, 46% { opacity: 0; } 47%, 100% { opacity: 1; } }
+.ov-tflash { background: var(--white); opacity: 0; animation: k-tfl var(--loop) ease-out infinite; }
+@keyframes k-tfl { 0%, 41% { opacity: 0; } 47% { opacity: 1; } 60%, 100% { opacity: 0; } }
+.t-rgbshake.a { animation: k-rsa var(--loop) linear infinite; }
+.t-rgbshake.b { animation: k-rsb var(--loop) linear infinite; }
+@keyframes k-rsa { 0%, 36% { transform: none; opacity: 1; } 38% { transform: translateY(-8%); } 41% { transform: translateY(6%); } 44% { transform: translateY(-4%); opacity: 1; } 46%, 100% { opacity: 0; } }
+@keyframes k-rsb { 0%, 46% { opacity: 0; } 47% { opacity: 1; transform: translateY(8%); } 50% { transform: translateY(-5%); } 53% { transform: translateY(3%); } 56% { transform: translateY(-1%); } 60%, 100% { transform: none; opacity: 1; } }
+.rgbjit { animation: k-rgbjit var(--loop) steps(1, end) infinite; }
+@keyframes k-rgbjit { 0%, 36%, 60%, 100% { text-shadow: none; } 38% { text-shadow: -7px 0 0 var(--val), 7px 0 0 var(--cyan); } 44% { text-shadow: -4px 0 0 var(--val), 4px 0 0 var(--cyan); } 50% { text-shadow: -6px 0 0 var(--val), 6px 0 0 var(--cyan); } 56% { text-shadow: -2px 0 0 var(--val), 2px 0 0 var(--cyan); } }
+.t-popin.b { animation: k-popin var(--loop) var(--ease) infinite; }
+@keyframes k-popin { 0%, 44% { transform: scale(0); opacity: 0; border-radius: 40%; } 45% { transform: scale(0.2); opacity: 1; border-radius: 40%; } 64% { transform: scale(1); border-radius: 0; } 100% { transform: scale(1); opacity: 1; border-radius: 0; } }
+.t-popin.b { overflow: hidden; }
+.t-stretch.a { animation: k-sta var(--loop) ease-in infinite; transform-origin: 0 50%; }
+.t-stretch.b { animation: k-stb var(--loop) var(--ease) infinite; transform-origin: 100% 50%; }
+@keyframes k-sta { 0%, 38% { transform: none; filter: none; opacity: 1; } 48% { transform: scaleX(2.6); filter: blur(4px); opacity: 1; } 49%, 100% { opacity: 0; } }
+@keyframes k-stb { 0%, 48% { opacity: 0; } 49% { opacity: 1; transform: scaleX(2.6); filter: blur(4px); } 62% { transform: none; filter: none; } 100% { transform: none; opacity: 1; } }
+
+/* ===== FX / look ===== */
+.ov-grain { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .7 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); mix-blend-mode: overlay; opacity: calc(0.35 + 0.3 * var(--k)); animation: k-grain 0.45s steps(4) infinite; }
+@keyframes k-grain { 0% { background-position: 0 0; } 25% { background-position: -37px 21px; } 50% { background-position: 53px -44px; } 75% { background-position: -12px 61px; } 100% { background-position: 0 0; } }
+.fx-rgb { animation: k-rgb 1.6s ease-in-out infinite; }
+@keyframes k-rgb { 0%, 100% { text-shadow: calc(-2px * var(--k)) 0 0 var(--val), calc(2px * var(--k)) 0 0 var(--cyan); } 50% { text-shadow: calc(-4px * var(--k)) 0 0 var(--val), calc(4px * var(--k)) 0 0 var(--cyan); } }
+.fx-glow { animation: k-glow 2.2s ease-in-out infinite; }
+@keyframes k-glow { 0%, 100% { text-shadow: 0 0 calc(6px * var(--k)) var(--accent), 0 0 calc(18px * var(--k)) var(--accent-mid); } 50% { text-shadow: 0 0 calc(10px * var(--k)) var(--accent), 0 0 calc(34px * var(--k)) var(--accent-mid), 0 0 calc(60px * var(--k)) var(--accent-low); } }
+.ov-vhs { background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 3px); mix-blend-mode: overlay; }
+.ov-vhs::after { content: ""; position: absolute; left: 0; right: 0; height: 18%; background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.16), transparent); animation: k-vhs 2.6s linear infinite; }
+@keyframes k-vhs { from { top: -20%; } to { top: 110%; } }
+.fx-vhs { animation: k-skew 1.6s steps(1) infinite; text-shadow: -2px 0 0 var(--val), 2px 0 0 var(--cyan); }
+@keyframes k-skew { 0%, 100% { transform: translateY(-50%); } 40% { transform: translateY(-50%) translateX(calc(3px * var(--k))) skewX(-6deg); } 43% { transform: translateY(-50%); } 77% { transform: translateY(-50%) translateX(calc(-2px * var(--k))); } 79% { transform: translateY(-50%); } }
+.ov-vig { background: radial-gradient(circle at 50% 50%, transparent 38%, var(--black) 100%); opacity: calc(0.5 + 0.25 * var(--k)); animation: k-vig 3s ease-in-out infinite; }
+@keyframes k-vig { 50% { opacity: calc(0.75 + 0.2 * var(--k)); } }
+.lb { position: absolute; left: 0; right: 0; height: 0; background: var(--black); z-index: 5; animation: k-lb var(--loop) var(--ease) infinite; }
+.lb.t { top: 0; }
+.lb.b2 { bottom: 0; }
+@keyframes k-lb { 0% { height: 0; } 28%, 78% { height: calc(10% + 4% * var(--k)); } 100% { height: 0; } }
+.c-lensfx { animation: k-lensfx 3s ease-in-out infinite alternate; }
+@keyframes k-lensfx { from { transform: scale(1.03); border-radius: 8%; } to { transform: scale(calc(1.06 + 0.04 * var(--k))); border-radius: 22%; } }
+.ov-leak { background: radial-gradient(circle at 20% 30%, rgba(255, 140, 90, 0.6), transparent 45%), radial-gradient(circle at 85% 70%, rgba(255, 70, 140, 0.45), transparent 50%); mix-blend-mode: screen; animation: k-leak 4.2s ease-in-out infinite alternate; }
+@keyframes k-leak { from { opacity: calc(0.3 + 0.2 * var(--k)); transform: translateX(-12%); } to { opacity: calc(0.6 + 0.3 * var(--k)); transform: translateX(12%); } }
+.grade { position: absolute; inset: 0; z-index: 2; animation: k-wipe 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.grade.cold { filter: hue-rotate(-28deg) saturate(1.25) brightness(1.08) contrast(1.05); }
+.grade.warm { filter: sepia(0.35) saturate(1.45) hue-rotate(-12deg) brightness(1.06); }
+.grade.punchy { filter: contrast(1.35) saturate(1.7) brightness(1.04); }
+.split { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--white); z-index: 3; box-shadow: 0 0 8px var(--white); animation: k-split 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+@keyframes k-wipe { 0%, 100% { clip-path: inset(0 0 0 85%); } 50% { clip-path: inset(0 0 0 15%); } }
+@keyframes k-split { 0%, 100% { left: 85%; } 50% { left: 15%; } }
+
+/* ===== styles de texte ===== */
+.st-val { color: var(--val); text-transform: uppercase; font-size: 40px; transform: translateY(-50%) scaleX(0.82); text-shadow: 0 2px 0 var(--white), 0 -2px 0 var(--white), 2px 0 0 var(--white), -2px 0 0 var(--white), 4px 5px 0 var(--black); }
+.bar { position: absolute; left: 22%; right: 22%; top: 68%; height: 4px; background: var(--white); z-index: 2; }
+.st-cs2 { color: var(--cs); font-size: 30px; font-style: italic; text-transform: uppercase; text-shadow: 2px 2px 0 #3a3a3a, 3px 3px 0 #2a2a2a; }
+.st-neon { color: #f4f0ff; font-size: 44px; animation: k-neon 3s steps(1) infinite; text-shadow: 0 0 4px var(--accent), 0 0 12px var(--accent), 0 0 30px var(--accent-mid), 0 0 60px var(--accent-low); }
+@keyframes k-neon { 0%, 100% { opacity: 1; } 62% { opacity: 0.55; } 64% { opacity: 1; } 66% { opacity: 0.7; } 67% { opacity: 1; } }
+.st-double { color: var(--white); filter: drop-shadow(2px 0 0 var(--black)) drop-shadow(-2px 0 0 var(--black)) drop-shadow(0 2px 0 var(--black)) drop-shadow(0 -2px 0 var(--black)) drop-shadow(2.5px 0 0 var(--accent)) drop-shadow(-2.5px 0 0 var(--accent)) drop-shadow(0 2.5px 0 var(--accent)) drop-shadow(0 -2.5px 0 var(--accent)); }
+.st-grad { background: linear-gradient(90deg, var(--accent), var(--val), var(--accent-mid), var(--accent)); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: k-grad 3s linear infinite; font-size: 40px; }
+@keyframes k-grad { to { background-position: 300% 0; } }
+.st-glitchs { color: var(--white); text-shadow: -3px 0 0 var(--val), 3px 0 0 var(--cyan); animation: k-skew 2.2s steps(1) infinite; }
+
+/* ===== outils de rythme ===== */
+.tl { position: absolute; inset: 0; z-index: 2; }
+.tl svg { width: 100%; height: 100%; display: block; }
+.tl .trk { fill: var(--surface-3); }
+.tl .clip { fill: var(--accent-low); opacity: 0.85; }
+.tl .clip2 { fill: var(--surface-3); }
+.tl .mk { fill: var(--accent); }
+.tl .cti { stroke: var(--accent); stroke-width: 1.5; }
+.tl .wf { fill: var(--muted); opacity: 0.55; }
+.tl .crv { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+.tl .grid-l { stroke: var(--line-strong); stroke-width: 0.6; }
+.tl .txt { font: 500 7px var(--font-mono); fill: var(--dim); letter-spacing: 0.08em; }
+.mk-pop { transform-box: fill-box; transform-origin: 50% 0%; animation: k-mk 2.4s var(--ease) infinite both; }
+@keyframes k-mk { 0% { transform: scale(0); } 12%, 85% { transform: scale(1); } 95%, 100% { transform: scale(0); } }
+.cti-move { animation: k-cti 2.4s linear infinite; }
+@keyframes k-cti { from { transform: translateX(0); } to { transform: translateX(100px); } }
+.draw { stroke-dasharray: 260; animation: k-draw 2.6s ease-in-out infinite; }
+@keyframes k-draw { 0% { stroke-dashoffset: 260; } 55%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -260; } }
+
+/* ---------- audio ---------- */
+.sfx-list { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 4px; }
+.sfx { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.sfx .play { width: 34px; height: 34px; border-radius: 999px; border: 0; display: grid; place-items: center; background: var(--surface-3); color: var(--text); cursor: pointer; grid-row: span 2; }
+.sfx .play:hover { background: var(--hover); }
+.sfx .play[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.sfx .top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sfx .nm { font: 500 12.5px var(--font-mono); color: var(--text); white-space: nowrap; }
+.sfx .sb { font: 400 10.5px var(--font-mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sfx .bot { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sfx canvas { flex: 1; min-width: 0; height: 26px; display: block; }
+.mini { border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font: 400 10.5px/1 var(--font-mono); padding: 6px 8px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.mini:hover { background: var(--hover); color: var(--text); }
+
+/* ---------- pied, toast, feuilles ---------- */
+.p-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font: 400 10.5px var(--font-mono); color: var(--dim); white-space: nowrap; }
+.p-foot span { display: inline-flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; }
+.toast { position: absolute; left: 12px; right: 12px; bottom: 44px; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--surface-3); border: 1px solid var(--line-strong); box-shadow: var(--shadow); transform: translateY(160%); opacity: 0; transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.2, 1.1), opacity 0.2s; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast .ti { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; flex: none; background: var(--accent); color: var(--on-accent); }
+.toast.err .ti { background: var(--err); color: var(--bg); }
+.toast .tx { flex: 1; min-width: 0; }
+.toast .t1 { font-size: 13px; font-weight: 600; line-height: 1.25; }
+.toast .t2 { font: 400 10.5px/1.35 var(--font-mono); color: var(--muted); margin-top: 2px; word-break: break-word; }
+.sheet { position: absolute; inset: 0; z-index: 25; display: flex; align-items: flex-end; background: rgba(8, 8, 9, 0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.sheet-card { width: 100%; max-height: 92%; overflow-y: auto; background: var(--surface); border-top: 1px solid var(--line-strong); border-radius: 22px 22px 0 0; padding: 14px 14px 18px; display: flex; flex-direction: column; gap: 12px; animation: up 0.3s cubic-bezier(0.2, 0.9, 0.2, 1); }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } }
+.sheet-head { display: flex; align-items: center; gap: 10px; }
+.sheet-head h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+.sheet-head .grow { flex: 1; min-width: 0; }
+.sheet .pv.big { aspect-ratio: 16 / 10; }
+.sheet .pv.big .word { font-size: 46px; }
+.sheet .pv.big .word.md { font-size: 34px; }
+.sheet .pv.big .word.sm { font-size: 30px; }
+.desc { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+.recipe { display: flex; flex-wrap: wrap; gap: 6px; }
+.recipe .pill { color: var(--text); }
+.recipe .plus { font: 500 12px var(--font-mono); color: var(--accent); align-self: center; }
+.box { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--inset); display: flex; flex-direction: column; gap: 8px; }
+.box-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.box-row .grow { flex: 1; min-width: 0; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; }
+.stepper button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); cursor: pointer; font: 500 14px/1 var(--font-mono); }
+.stepper button:hover { background: var(--hover); }
+.stepper output { font: 600 13px var(--font-mono); min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 999px; border: 0; cursor: pointer; font-size: 14px; font-weight: 600; }
+.btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 1px rgba(199, 191, 255, 0.4), 0 8px 24px var(--glow); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 12.5px; }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.row-btns .btn.primary { flex: 1; min-width: 140px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.set-row:last-child { border-bottom: 0; }
+.set-row .t1 { font-size: 13.5px; font-weight: 500; }
+.set-row .t2 { font: 400 10.5px var(--font-mono); color: var(--dim); margin-top: 2px; }
+.sw { position: relative; width: 38px; height: 22px; flex: none; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface-3); cursor: pointer; padding: 0; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform 0.2s, background 0.2s; }
+.sw[aria-checked="true"] { background: var(--accent-soft); border-color: rgba(199, 191, 255, 0.5); }
+.sw[aria-checked="true"]::after { transform: translateX(16px); background: var(--accent); }
+.empty { margin: 18px 14px; padding: 22px 16px; text-align: center; border: 1px dashed var(--line-strong); border-radius: 16px; color: var(--muted); font-size: 13px; }
+.empty .cmd { display: block; margin-top: 6px; }
+
+/* ---------- éditeur de courbe ---------- */
+.ce-graph { display: block; width: 100%; max-width: 320px; margin: 0 auto; aspect-ratio: 1 / 1; background: var(--inset); border: 1px solid var(--line); border-radius: 16px; touch-action: none; user-select: none; }
+.ce-graph .zone { fill: var(--accent-soft); }
+.ce-graph .g { stroke: var(--line); stroke-width: 0.8; }
+.ce-graph .g.strong { stroke: var(--line-strong); }
+.ce-graph .ref { stroke: var(--line-strong); stroke-dasharray: 3 3; fill: none; stroke-width: 1; }
+.ce-graph .crv { stroke: var(--accent); stroke-width: 2.6; fill: none; stroke-linecap: round; }
+.ce-graph .arm { stroke: var(--muted); stroke-width: 1; }
+.ce-graph .hdl { fill: var(--bg); stroke: var(--accent); stroke-width: 2.2; cursor: grab; }
+.ce-graph .hdl:focus { outline: none; stroke: var(--white); }
+.ce-graph .hdl-hit { fill: transparent; cursor: grab; }
+.ce-graph .end { fill: var(--muted); }
+.ce-graph text { font: 500 7.5px var(--font-mono); fill: var(--dim); letter-spacing: 0.06em; }
+.ce-read { display: flex; align-items: center; gap: 8px; }
+.ce-read code { flex: 1; min-width: 0; font: 500 12px var(--font-mono); color: var(--text); background: var(--inset); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; overflow-x: auto; white-space: nowrap; }
+.ce-demos { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; }
+.ce-track { position: relative; height: 44px; border-radius: 12px; background: var(--inset); border: 1px solid var(--line); overflow: hidden; }
+.ce-track::before { content: ""; position: absolute; left: 16px; right: 16px; top: 50%; border-top: 1px dashed var(--line-strong); }
+.ce-ball { position: absolute; top: 50%; left: 8px; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px var(--glow); animation: ce-move 1.6s var(--ce) infinite; }
+@keyframes ce-move { 0%, 10% { left: 8px; } 72%, 100% { left: calc(100% - 26px); } }
+.ce-sq { height: 44px; border-radius: 12px; background: var(--inset); border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+.ce-sq i { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); animation: ce-scale 1.6s var(--ce) infinite; }
+@keyframes ce-scale { 0%, 10% { transform: scale(0.25); } 72%, 100% { transform: scale(1); } }
+.ce-lib { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+.ce-lib button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 5px; border-radius: 10px; border: 1px solid var(--line); background: var(--inset); color: var(--dim); cursor: pointer; font: 500 10px var(--font-mono); }
+.ce-lib button svg { width: 44px; height: 28px; overflow: visible; }
+.ce-lib button path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.ce-lib button span { color: var(--muted); }
+.ce-lib button[aria-pressed="true"] { border-color: rgba(199, 191, 255, 0.55); background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- activation (licence) ---------- */
+.gate { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 28px 24px; text-align: center; background: radial-gradient(circle at 50% 12%, rgba(142, 127, 255, 0.22), transparent 55%), var(--bg); transition: opacity 0.45s, transform 0.45s; }
+.gate.leave { opacity: 0; transform: scale(1.03); pointer-events: none; }
+.gate .logo { width: 72px; height: 72px; filter: drop-shadow(0 10px 30px var(--glow)); }
+.gate .logo .e2 { animation: echo2 2.6s ease-in-out infinite; }
+.gate .logo .e1 { animation: echo1 2.6s ease-in-out infinite; }
+@keyframes echo2 { 0%, 100% { transform: translateX(-3.2px); } 50% { transform: translateX(-5.5px); } }
+@keyframes echo1 { 0%, 100% { transform: translateX(-1.4px); } 50% { transform: translateX(-2.6px); } }
+.gate h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; }
+.gate h2 b { color: var(--accent); }
+.gate form { width: 100%; max-width: 300px; display: flex; flex-direction: column; gap: 10px; }
+.key { width: 100%; height: 44px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--inset); color: var(--text); text-align: center; font: 500 15px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; outline: none; }
+.key:focus { border-color: rgba(199, 191, 255, 0.6); box-shadow: 0 0 0 3px var(--accent-soft); }
+.key[aria-invalid="true"] { border-color: var(--err); }
+.gate .err { min-height: 16px; font: 400 11px var(--font-mono); color: var(--err); }
+.gate .btn.primary { width: 100%; height: 44px; }
+.gate .fine { display: flex; flex-direction: column; gap: 4px; }
+.spin-s { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(42, 0, 159, 0.3); border-top-color: var(--on-accent); animation: spin 0.7s linear infinite; }
+
+/* ---------- notes ---------- */
+.notes { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px 20px; box-shadow: var(--shadow); }
+.note h3 { margin: 6px 0 8px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.note p, .note li { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 62ch; }
+.note ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.note b { color: var(--text); font-weight: 600; }
+.palette { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sw-c { display: flex; align-items: center; gap: 6px; font: 400 10.5px var(--font-mono); color: var(--dim); }
+.sw-c i { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--line-strong); display: block; }
+
+@media (prefers-reduced-motion: reduce) { .ae, .toast, .gate { transition: none; } }
+@media (max-width: 480px) { .brand h1 { font-size: 30px; } .panel { height: 740px; } }
+</style>
+
+<main class="stage">
+  <header class="stage-head">
+    <div class="brand">
+      <span id="stageLogo"></span>
+      <div>
+        <h1>Yexo<b>FX</b></h1>
+        <div class="cmd">cat ~/yexofx/maquette-panel.md · v0.3</div>
+      </div>
+    </div>
+    <div class="width-pick">
+      <span class="label">Largeur du panel docké</span>
+      <div class="seg" id="widthSeg" role="group" aria-label="Largeur du panel">
+        <button type="button" data-w="340" aria-pressed="false">340 px</button>
+        <button type="button" data-w="420" aria-pressed="true">420 px</button>
+        <button type="button" data-w="560" aria-pressed="false">560 px</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage-body">
+    <div class="ae" id="ae">
+      <div class="ae-bar" aria-hidden="true">
+        <span class="on">YexoFX <span>&#8801;</span></span>
+        <span>Effect Controls</span>
+        <span>Effects &amp; Presets</span>
+      </div>
+      <div class="panel" id="panel">
+        <header class="p-head">
+          <span id="headLogo"></span>
+          <div class="p-title">
+            <div class="wm">Yexo<b>FX</b><span class="ver">v0.3</span></div>
+            <div class="cmd">yexo@ae ~ $ yfx --live</div>
+          </div>
+          <button class="ibtn" id="btnCurve" type="button" title="Éditeur de courbe"></button>
+          <button class="ibtn" id="btnAuto" type="button" aria-pressed="true" title="Lecture auto des previews"></button>
+          <button class="ibtn" id="btnSettings" type="button" title="Réglages du panel"></button>
+        </header>
+
+        <div class="ctx">
+          <span class="pill"><span class="dot"></span>AE 2025 · EDIT_VALO_01 · 60 fps</span>
+          <button class="pill" id="selPill" type="button" title="Clique pour simuler une autre sélection"></button>
+        </div>
+
+        <label class="search">
+          <span id="searchIco"></span>
+          <input id="q" type="search" placeholder="twitch, rgb, velocity, whoosh…" autocomplete="off" aria-label="Rechercher un preset ou un son">
+          <kbd>/</kbd>
+        </label>
+
+        <nav class="cats" id="cats" aria-label="Catégories"></nav>
+
+        <div class="tune" id="tune" data-open="false">
+          <button class="tune-sum" id="tuneSum" type="button" aria-expanded="false">
+            <span class="label">Réglages</span>
+            <span class="vals" id="tuneVals"></span>
+            <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="tune-body">
+            <div class="trow">
+              <span class="label">Intensité</span>
+              <input class="range" id="intensity" type="range" min="0" max="200" step="5" value="100" aria-label="Intensité">
+              <span class="v" id="intensityV">100 %</span>
+            </div>
+            <div class="trow">
+              <span class="label">Courbe</span>
+              <div class="curves" id="curves" role="group" aria-label="Courbe d'easing par défaut"></div>
+              <span class="v" id="curveV">Back</span>
+            </div>
+            <div class="hint">Durée : propre à chaque preset. Survole une vignette et clique − / +, ou ouvre sa fiche (⋯).</div>
+          </div>
+        </div>
+
+        <div class="p-scroll" id="scroll"><section id="view"></section></div>
+
+        <footer class="p-foot">
+          <span id="licFoot"><span class="dot off"></span>licence : non activée</span>
+          <span>v0.3 · AE 2025</span>
+        </footer>
+
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        <div class="sheet" id="sheet" hidden></div>
+
+        <div class="gate" id="gate">
+          <span id="gateLogo"></span>
+          <div>
+            <h2>Active Yexo<b>FX</b></h2>
+            <div class="cmd" style="margin-top:6px">yfx license --activate</div>
+          </div>
+          <form id="gateForm" novalidate>
+            <input class="key" id="key" value="YFX-7Q2K-DEMO-0426" maxlength="18" spellcheck="false" autocomplete="off" aria-label="Clé de licence" aria-describedby="keyErr">
+            <div class="err" id="keyErr"></div>
+            <button class="btn primary" id="keyBtn" type="submit">Activer</button>
+          </form>
+          <div class="fine">
+            <span class="cmd">clé liée à ce PC · vérifiée en ligne</span>
+            <span class="cmd">pas de clé ? demande l'accès sur le Discord Edits</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="notes">
+      <section class="note">
+        <div class="label">Nouveau dans la v0.3</div>
+        <h3><span id="nPresets">72</span> presets pensés comme des combos d'edit</h3>
+        <ul>
+          <li><b>Impacts</b> : les combos du moment du kill (Kill Hit = shake + RGB léger + flash, Shake + Twitch, RGB Punch, Bass Drop…). La recette s'affiche dans la fiche ⋯.</li>
+          <li><b>Twitch</b> et <b>Shake</b> : sauts aléatoires façon Twitch, shakes Twitchy et Jumpy façon S_Shake. Tout en natif.</li>
+          <li><b>Vitesse</b> : velocity, slow kill, freeze, rewind, choppy, avec la courbe de vitesse sur chaque vignette.</li>
+          <li><b>Filtre par vibe</b> : clean, agressif, smooth, glitch, rétro.</li>
+        </ul>
+      </section>
+      <section class="note">
+        <div class="label">Durée et courbe</div>
+        <h3>Chaque preset se rallonge, se raccourcit et se recourbe</h3>
+        <ul>
+          <li>Survole une vignette : <b>− / +</b> en bas à gauche change la durée (Maj+clic : 5 images). La preview suit.</li>
+          <li>Fiche <b>⋯</b> : durée exacte, raccourcis court / normal / long, et bouton <b>Éditer la courbe</b>.</li>
+          <li>Bouton courbe en haut du panel, ou <b>Vitesse › Easing keys</b> : éditeur de courbe façon Flow. Tire les poignées, copie le cubic-bezier, enregistre tes courbes.</li>
+          <li>Dans AE, tout reste réglable après coup : contrôles Durée et Courbe sur le calque YFX.</li>
+        </ul>
+      </section>
+      <section class="note">
+        <div class="label">DA reprise de yexofps.org</div>
+        <p>Geist et Geist Mono, accent lavande, labels mono en capitales, lignes façon terminal, coins de viseur sur les médias. Les vignettes sont des imitations en CSS ; dans le vrai panel, ce seront les vidéos.</p>
+        <div class="palette" aria-hidden="true">
+          <span class="sw-c"><i style="background:var(--bg)"></i>#0e0e0f</span>
+          <span class="sw-c"><i style="background:var(--surface)"></i>#1c1b1d</span>
+          <span class="sw-c"><i style="background:var(--accent)"></i>#c7bfff</span>
+          <span class="sw-c"><i style="background:var(--on-accent)"></i>#2a009f</span>
+          <span class="sw-c"><i style="background:var(--val)"></i>#ff4655</span>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fr = (n, d) => n.toFixed(d === undefined ? 2 : d).replace('.', ',');
+  const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  // ---------------------------------------------------------------- icônes
+  const ICON = {
+    impacts: '<path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/>',
+    text: '<path d="M5 6h14M12 6v13"/>',
+    shake: '<path d="M2 12c2-5 4 5 6 0s4 5 6 0 4 5 6 0"/>',
+    twitch: '<path d="M2 12h4l2-6 3 12 3-9 2 3h6"/>',
+    speed: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 17 4.5-5.5"/>',
+    trans: '<rect x="3" y="4" width="12" height="12" rx="2.5"/><rect x="9" y="8" width="12" height="12" rx="2.5"/>',
+    fx: '<path d="M12 3v5M12 16v5M3 12h5M16 12h5M6.3 6.3l2.4 2.4M15.3 15.3l2.4 2.4M17.7 6.3l-2.4 2.4M8.7 15.3l-2.4 2.4"/>',
+    styles: '<path d="M12 3.5c3.8 4.6 5.8 7.7 5.8 10.3a5.8 5.8 0 0 1-11.6 0c0-2.6 2-5.7 5.8-10.3z"/>',
+    audio: '<path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/>',
+    fav: '<path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+    play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+    stop: '<rect x="7" y="7" width="10" height="10" rx="1.5"/>',
+    gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8"/>',
+    curve: '<path d="M4 20C10 20 9 4 20 4"/><circle cx="4" cy="20" r="1.6"/><circle cx="20" cy="4" r="1.6"/>',
+    more: '<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    alert: '<path d="M12 7v6M12 16.5v.5"/>',
+    back: '<path d="m14 6-6 6 6 6"/>',
+  };
+  const FILLED = { play: 1, stop: 1, more: 1 };
+  const ico = (n, cls) => `<svg class="ico${FILLED[n] ? ' fill' : ''}${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+  const Y_PATH = 'M11.5 10.5 18 18.6l6.5-8.1M18 18.6v7.4';
+  const logo = () => `<svg class="logo" viewBox="0 0 36 36" aria-hidden="true"><rect width="36" height="36" rx="11" fill="var(--accent)"/><g fill="none" stroke="var(--on-accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path class="echo e2" d="${Y_PATH}" transform="translate(-3.2 0)" opacity=".16"/><path class="echo e1" d="${Y_PATH}" transform="translate(-1.4 0)" opacity=".34"/><path d="${Y_PATH}" transform="translate(1.6 0)"/></g></svg>`;
+  ['stageLogo', 'headLogo', 'gateLogo'].forEach((id) => { $('#' + id).outerHTML = logo(); });
+  $('#btnAuto').innerHTML = ico('play');
+  $('#btnSettings').innerHTML = ico('gear');
+  $('#btnCurve').innerHTML = ico('curve');
+  $('#searchIco').outerHTML = ico('search');
+
+  // ---------------------------------------------------------------- données
+  const CATS = [
+    { id: 'impacts', label: 'Impacts', cmd: 'ls ~/presets/impacts' },
+    { id: 'text', label: 'Texte', cmd: 'ls ~/presets/texte' },
+    { id: 'shake', label: 'Shake', cmd: 'ls ~/presets/shake' },
+    { id: 'twitch', label: 'Twitch', cmd: 'ls ~/presets/twitch' },
+    { id: 'speed', label: 'Vitesse', cmd: 'ls ~/presets/vitesse' },
+    { id: 'trans', label: 'Transitions', cmd: 'ls ~/presets/transitions' },
+    { id: 'fx', label: 'FX', cmd: 'ls ~/presets/fx' },
+    { id: 'styles', label: 'Styles', cmd: 'ls ~/presets/styles' },
+    { id: 'audio', label: 'Audio', cmd: 'ls ~/sfx' },
+    { id: 'fav', label: 'Favoris', cmd: 'cat ~/.yexofx/favoris' },
+  ];
+  const VIBES = { clean: 'clean', aggro: 'agressif', smooth: 'smooth', glitch: 'glitch', retro: 'rétro' };
+  // f = durée par défaut en images (ou 'loop' pour un effet continu). rx = recette (effets combinés).
+  const P = [
+    // Impacts : combos posés au CTI (ou sur chaque marker)
+    { id: 'killhit', cat: 'impacts', name: 'Kill Hit', sb: 'shake + RGB + flash', vibe: 'aggro', f: 8, sfx: 'impact_02', rx: ['Impact shake', 'RGB split léger · 4 f', 'Flash exposure · 2 f'], desc: "Le combo de base sur un kill : une secousse qui s'amortit, un petit écart RGB au moment du coup et un flash d'exposition de 2 images." },
+    { id: 'shaketwitch', cat: 'impacts', name: 'Shake + Twitch', sb: 'secousse + sauts de scale', vibe: 'aggro', f: 10, sfx: 'impact_05', rx: ['Impact shake', 'Twitch scale · 3 sauts', 'Motion blur'], desc: 'La secousse d\'impact ponctuée de sauts de scale aléatoires, façon Twitch. Nerveux sans être illisible.' },
+    { id: 'rgbpunch', cat: 'impacts', name: 'RGB Punch', sb: 'zoom punch + RGB', vibe: 'aggro', f: 8, sfx: 'impact_05', rx: ['Zoom punch +22 %', 'RGB split · 6 f', 'Retour avec la courbe'], desc: 'Un coup de zoom vers le réticule pendant que les canaux rouge et bleu s\'écartent, puis tout se recolle.' },
+    { id: 'hspop', cat: 'impacts', name: 'Headshot Pop', sb: 'zoom réticule + blur', vibe: 'clean', f: 10, sfx: 'click_02', rx: ['Zoom vers le centre', 'Radial blur · 4 f', 'Flash · 2 f'], desc: 'Zoom rapide centré sur le réticule avec un flou radial, puis retour propre. Pour souligner un one-tap.' },
+    { id: 'bassdrop', cat: 'impacts', name: 'Bass Drop', sb: 'secousse lourde + expo', vibe: 'aggro', f: 14, sfx: 'bassdrop_01', rx: ['Shake vertical lourd', 'Exposure +1,5', 'RGB split · 4 f'], desc: 'Secousse verticale lourde et surexposition, à caler sur un drop.' },
+    { id: 'flicker', cat: 'impacts', name: 'Flicker', sb: "strobe d'exposition", vibe: 'glitch', f: 6, rx: ['Exposure · 3 pulses', 'Posterize time'], desc: 'Trois flashs d\'exposition très courts, effet stroboscope.' },
+    { id: 'choppy', cat: 'impacts', name: 'Choppy Hit', sb: 'saccadé + shake', vibe: 'glitch', f: 12, rx: ['Posterize time 12 i/s', 'Impact shake'], desc: "L'image passe en saccadé pendant l'impact, puis reprend sa fluidité." },
+    { id: 'glowhit', cat: 'impacts', name: 'Glow Hit', sb: "bloom sur l'impact", vibe: 'clean', f: 12, rx: ['Glow natif ou Deep Glow', 'Exposure +0,6', 'Retombée 12 f'], desc: 'Les hautes lumières s\'embrasent puis retombent. Utilise Deep Glow s\'il est installé, sinon le Glow natif.' },
+    { id: 'lenspunch', cat: 'impacts', name: 'Lens Punch', sb: 'bulge + scale', vibe: 'clean', f: 10, rx: ['Optics Compensation', 'Scale +16 %', 'Vignette éclair'], desc: "L'image se bombe comme un objectif fisheye pendant un instant." },
+    { id: 'freezehit', cat: 'impacts', name: 'Freeze Hit', sb: 'arrêt sur image + zoom', vibe: 'clean', f: 18, rx: ['Freeze frame', 'Zoom lent +7 %', 'Désaturation', 'Flash à la reprise'], desc: "L'image se fige sur le kill, zoome doucement en noir et blanc, puis repart avec un flash." },
+    // Texte
+    { id: 'pop', cat: 'text', name: 'Pop', sb: 'scale · overshoot', vibe: 'clean', f: 12, w: 'ACE', sfx: 'click_02', rx: ['Animator scale', 'Sélecteur expression', 'Délai entre lettres'], desc: 'Chaque lettre surgit avec un léger dépassement, puis se pose. L\'anim la plus polyvalente.' },
+    { id: 'slide', cat: 'text', name: 'Slide', sb: 'position · 4 directions', vibe: 'clean', f: 14, w: 'CLUTCH', sfx: 'whoosh_01', rx: ['Animator position', 'Masque de ligne', 'Direction réglable'], desc: 'Les lettres montent depuis la ligne de base avec un easing fort.' },
+    { id: 'blur', cat: 'text', name: 'Blur', sb: 'flou · fondu', vibe: 'smooth', f: 16, w: 'HEADSHOT', rx: ['Animator blur', 'Opacité', 'Scale 115 %'], desc: 'Les lettres sortent du flou une par une, avec un léger zoom.' },
+    { id: 'type', cat: 'text', name: 'Typewriter', sb: 'frappe · curseur', vibe: 'clean', f: 24, w: 'gg ez', sfx: 'click_02', rx: ['Révélation par lettre', 'Curseur clignotant'], desc: 'Le texte se tape lettre par lettre, avec un curseur clignotant en option.' },
+    { id: 'glitch', cat: 'text', name: 'Glitch', sb: 'jitter · RGB split', vibe: 'glitch', f: 10, w: 'ACE', sfx: 'glitch_04', rx: ['Position aléatoire par lettre', 'RGB split'], desc: 'Décalages aléatoires par lettre et split RGB rapide, pour un kill nerveux.' },
+    { id: 'stomp', cat: 'text', name: 'Stomp', sb: 'chute + secousse', vibe: 'aggro', f: 10, w: 'ACE', sfx: 'impact_02', rx: ['Chute par lettre', 'Écrasement', 'Shake à l\'atterrissage'], desc: 'Les lettres tombent d\'en haut et secouent l\'image en touchant le sol.' },
+    { id: 'feed', cat: 'text', name: 'Kill Feed', sb: 'bandeau qui glisse', vibe: 'clean', f: 14, w: 'YEXO', rx: ['Bandeau + barre rouge', 'Slide depuis la droite'], desc: 'Un bandeau de kill feed qui glisse depuis la droite, comme dans le jeu.' },
+    { id: 'flip', cat: 'text', name: 'Flip 3D', sb: 'rotation par lettre', vibe: 'clean', f: 14, w: 'RETAKE', rx: ['3D par caractère', 'Rotation X'], desc: 'Chaque lettre bascule en 3D autour de sa base.' },
+    { id: 'track', cat: 'text', name: 'Tracking', sb: 'espacement', vibe: 'smooth', f: 20, w: 'VICTORY', rx: ['Tracking', 'Flou de mouvement'], desc: "L'espacement se resserre jusqu'au mot final." },
+    { id: 'scramble', cat: 'text', name: 'Scramble', sb: 'décodage', vibe: 'glitch', f: 24, w: 'DEFUSED', rx: ['Character offset', 'Résolution par lettre'], desc: 'Des caractères aléatoires se résolvent un à un en texte lisible.' },
+    { id: 'wave', cat: 'text', name: 'Wave', sb: 'jelly continu', vibe: 'smooth', f: 'loop', w: 'gg wp', rx: ['Position Y sinusoïdale', 'Scale Y'], desc: 'Une vague continue traverse le texte.' },
+    { id: 'kin', cat: 'text', name: 'Kinetic', sb: 'mots sur markers', vibe: 'aggro', f: 10, w: 'NO SCOPE', rx: ['Un mot par marker', 'Scale punch'], desc: 'Chaque mot arrive sur un marker posé au rythme de la musique.' },
+    // Shake
+    { id: 'smooth', cat: 'shake', name: 'Smooth', sb: 'dérive lente + flou', vibe: 'smooth', f: 'loop', rx: ['Wiggle 1,2 Hz', 'Rotation ±0,7°', 'Motion blur', 'Motion Tile'], desc: 'Mouvement lent et flottant avec du motion blur. Pour les intros et les edits slowed.' },
+    { id: 'hand', cat: 'shake', name: 'Handheld', sb: 'caméra à la main', vibe: 'clean', f: 'loop', rx: ['Wiggle 4 Hz', 'Amplitude 6 px', 'Motion Tile'], desc: 'Un léger tremblement continu de caméra tenue à la main.' },
+    { id: 'twitchy', cat: 'shake', name: 'Twitchy', sb: 'immobile puis rafales', vibe: 'aggro', f: 'loop', rx: ['Rafales aléatoires', 'Fréquence des rafales', 'Immobilité réglable'], desc: 'Alterne immobilité et rafales de secousse, dans l\'esprit du mode Twitchy de S_Shake, en natif.' },
+    { id: 'jumpy', cat: 'shake', name: 'Jumpy', sb: 'sauts + dérive', vibe: 'aggro', f: 'loop', rx: ['Sauts soudains', 'Dérive lente entre deux'], desc: 'Des secousses soudaines séparées par une dérive lente.' },
+    { id: 'impact', cat: 'shake', name: 'Impact', sb: 'decay sur markers', vibe: 'aggro', f: 12, sfx: 'impact_02', rx: ['Secousse amortie', 'Déclenchée sur markers'], desc: 'Une secousse forte qui s\'amortit, sur chaque marker du calque YFX.' },
+    { id: 'hor', cat: 'shake', name: 'Horizontal', sb: 'impact en X', vibe: 'aggro', f: 10, rx: ['Secousse X amortie'], desc: 'Impact uniquement à l\'horizontale, pour les tirs et les whips.' },
+    { id: 'ver', cat: 'shake', name: 'Vertical', sb: 'impact en Y', vibe: 'aggro', f: 10, rx: ['Secousse Y amortie'], desc: 'Impact uniquement à la verticale, pour les drops et les sauts.' },
+    { id: 'rumble', cat: 'shake', name: 'Rumble', sb: 'grondement continu', vibe: 'smooth', f: 40, sfx: 'riser_01', rx: ['Vibration basse fréquence', 'Montée et descente douces'], desc: 'Une vibration basse et continue, pour accompagner un riser ou une ult.' },
+    { id: 'roll', cat: 'shake', name: 'Roll', sb: 'roulis de caméra', vibe: 'smooth', f: 'loop', rx: ['Rotation ±2,4°', 'Motion Tile'], desc: 'La caméra roule doucement de gauche à droite.' },
+    // Twitch (opérateurs façon plugin Twitch, en natif)
+    { id: 'tw-scale', cat: 'twitch', name: 'Twitch Scale', sb: 'sauts de zoom', vibe: 'aggro', f: 8, rx: ['Scale aléatoire ±14 %', 'Ancre aléatoire', 'Motion blur'], desc: 'Des sauts de zoom aléatoires sur quelques images.' },
+    { id: 'tw-slide', cat: 'twitch', name: 'Twitch Slide', sb: 'glissés + RGB', vibe: 'glitch', f: 8, rx: ['Position X aléatoire', 'RGB split sur le mouvement', 'Motion blur'], desc: 'L\'image glisse par à-coups, avec un écart RGB à chaque saut.' },
+    { id: 'tw-light', cat: 'twitch', name: 'Twitch Light', sb: "sauts d'exposition", vibe: 'aggro', f: 8, rx: ['Exposure aléatoire ±1,5 IL'], desc: 'L\'exposition saute vers le clair et le sombre, au hasard.' },
+    { id: 'tw-blur', cat: 'twitch', name: 'Twitch Blur', sb: 'flous éclair', vibe: 'smooth', f: 8, rx: ['Fast Box Blur aléatoire'], desc: 'Des flous très courts qui claquent sur le rythme.' },
+    { id: 'tw-time', cat: 'twitch', name: 'Twitch Time', sb: 'sauts dans le temps', vibe: 'glitch', f: 8, rx: ['Time remap décalé ±3 images'], desc: "L'image saute quelques images en avant ou en arrière, au hasard." },
+    { id: 'tw-full', cat: 'twitch', name: 'Twitch Full', sb: 'tout combiné', vibe: 'aggro', f: 10, sfx: 'glitch_04', rx: ['Scale', 'Slide + RGB', 'Light', 'Seed commune'], desc: 'Tous les opérateurs à la fois, synchronisés sur la même seed.' },
+    // Vitesse
+    { id: 'velocity', cat: 'speed', name: 'Velocity', sb: 'rapide › lent › rapide', vibe: 'smooth', f: 30, sfx: 'whoosh_03', rx: ['Time remapping', 'Courbe de vitesse', 'Frame blending Pixel Motion'], desc: 'La rampe classique des edits : ça accélère vers le kill, ralentit dessus, puis repart.' },
+    { id: 'slowkill', cat: 'speed', name: 'Slow Kill', sb: 'ralenti sur le kill', vibe: 'smooth', f: 30, rx: ['Time remapping', 'Vitesse 25 %', 'Pixel Motion'], desc: 'Passe en ralenti au CTI et y reste.' },
+    { id: 'speedup', cat: 'speed', name: 'Speed Up', sb: 'accélération', vibe: 'aggro', f: 20, rx: ['Time remapping', 'Vitesse 300 %'], desc: 'Part lentement et accélère fort vers la suite.' },
+    { id: 'freeze', cat: 'speed', name: 'Freeze', sb: 'arrêt puis reprise', vibe: 'clean', f: 20, rx: ['Time remap figé', 'Reprise avec la courbe'], desc: "L'action s'arrête net sur le kill, puis reprend." },
+    { id: 'rewind', cat: 'speed', name: 'Rewind', sb: 'retour arrière', vibe: 'glitch', f: 24, sfx: 'whoosh_01', rx: ['Time remap inversé', 'Lignes VHS', 'Whoosh'], desc: 'Le clip revient en arrière à toute vitesse avant de rejouer l\'action.' },
+    { id: 'posterize', cat: 'speed', name: 'Choppy', sb: 'cadence 12 i/s', vibe: 'glitch', f: 'loop', rx: ['Posterize Time 12 i/s'], desc: 'Fait tomber la cadence à 12 images par seconde : look saccadé.' },
+    { id: 'marker', cat: 'speed', name: 'Marker au CTI', sb: 'déclencheur', vibe: 'clean', f: 'loop', tool: 1, rx: ['Marker de calque'], desc: 'Pose un marker à la tête de lecture. Les impacts, flashs et shakes se déclenchent dessus.' },
+    { id: 'beat', cat: 'speed', name: 'Beat sync', sb: 'markers sur les pics', vibe: 'clean', f: 'loop', tool: 1, rx: ['Convert Audio to Keyframes', 'Seuil réglable'], desc: 'Analyse la musique et pose un marker sur chaque pic au-dessus du seuil.' },
+    { id: 'ease', cat: 'speed', name: 'Easing keys', sb: 'courbe sur tes keyframes', vibe: 'clean', f: 'loop', tool: 1, rx: ['Éditeur de courbe', 'Keyframes sélectionnées'], desc: "Ouvre l'éditeur de courbe et applique la courbe à tes propres keyframes." },
+    // Transitions
+    { id: 'zoom', cat: 'trans', name: 'Zoom in', sb: 'scale + blur radial', vibe: 'smooth', f: 12, sfx: 'whoosh_01', rx: ['Scale', 'Radial blur', 'Motion Tile'], desc: "Le plan sortant fonce dans l'image, le plan entrant arrive depuis le flou." },
+    { id: 'zoomout', cat: 'trans', name: 'Zoom out', sb: 'recul + blur', vibe: 'smooth', f: 12, sfx: 'whoosh_03', rx: ['Scale', 'Radial blur', 'Motion Tile'], desc: "Le plan sortant recule, le plan entrant s'écrase vers sa taille." },
+    { id: 'whip', cat: 'trans', name: 'Whip pan', sb: 'flou directionnel', vibe: 'smooth', f: 10, sfx: 'whoosh_01', rx: ['Position X', 'Directional blur', 'Motion Tile'], desc: 'Un panoramique éclair avec flou de mouvement entre les deux plans.' },
+    { id: 'spin', cat: 'trans', name: 'Spin', sb: 'rotation 150°', vibe: 'aggro', f: 12, sfx: 'whoosh_03', rx: ['Rotation', 'Scale', 'Radial blur'], desc: "Le plan tourne et s'enchaîne sur le suivant dans le même mouvement." },
+    { id: 'rgbshake', cat: 'trans', name: 'RGB Shake', sb: 'secousse verticale RGB', vibe: 'aggro', f: 12, sfx: 'impact_05', rx: ['Shake vertical', 'RGB split', 'Coupe au milieu'], desc: 'Les deux plans tremblent verticalement avec un écart RGB autour de la coupe.' },
+    { id: 'whiteglitch', cat: 'trans', name: 'White Glitch', sb: 'tranches + flash', vibe: 'glitch', f: 8, sfx: 'glitch_04', rx: ['Tranches décalées', 'Flash blanc'], desc: 'Les deux plans se mélangent par tranches dans un flash blanc.' },
+    { id: 'popin', cat: 'trans', name: 'Pop-in', sb: 'le plan B surgit', vibe: 'clean', f: 10, sfx: 'click_02', rx: ['Scale depuis 20 %', 'Coins arrondis', 'Courbe Back'], desc: 'Le plan suivant surgit du centre avec un dépassement.' },
+    { id: 'stretch', cat: 'trans', name: 'Stretch', sb: 'étirement horizontal', vibe: 'smooth', f: 10, sfx: 'whoosh_01', rx: ['Scale X', 'Flou'], desc: "Le plan s'étire jusqu'à se fondre dans le suivant." },
+    { id: 'tflash', cat: 'trans', name: 'Flash', sb: 'coupe blanche', vibe: 'clean', f: 6, sfx: 'impact_05', rx: ['Flash blanc'], desc: 'Un flash blanc masque la coupe.' },
+    // FX / look
+    { id: 'grain', cat: 'fx', name: 'Grain', sb: 'fractal noise', vibe: 'retro', f: 'loop', rx: ['Fractal Noise en overlay', 'Taille et intensité'], desc: 'Grain film en overlay, taille et intensité réglables.' },
+    { id: 'rgb', cat: 'fx', name: 'RGB léger', sb: 'aberration continue', vibe: 'glitch', f: 'loop', rx: ['Décalage R / B', 'Intensité animable'], desc: 'Un écart RGB discret et permanent qui respire.' },
+    { id: 'glow', cat: 'fx', name: 'Glow', sb: 'natif · Deep Glow si installé', vibe: 'clean', f: 'loop', rx: ['Glow natif empilé', 'ou Deep Glow'], desc: 'Un halo doux sur les hautes lumières. Passe sur Deep Glow automatiquement s\'il est installé.' },
+    { id: 'vhs', cat: 'fx', name: 'VHS', sb: 'scanlines · tracking', vibe: 'retro', f: 'loop', rx: ['Scanlines', 'Bande de tracking', 'Décalage couleur'], desc: 'Lignes de balayage, bande de tracking et léger décalage couleur.' },
+    { id: 'vig', cat: 'fx', name: 'Vignette', sb: 'bords assombris', vibe: 'clean', f: 'loop', rx: ['Vignette Lumetri'], desc: "Assombrit les bords pour centrer l'œil sur l'action." },
+    { id: 'letterbox', cat: 'fx', name: 'Letterbox', sb: 'bandes ciné animées', vibe: 'clean', f: 14, rx: ['Bandes noires', 'Entrée / sortie animées'], desc: 'Les bandes cinéma entrent sur le moment fort et ressortent ensuite.' },
+    { id: 'lens', cat: 'fx', name: 'Lens', sb: 'fisheye léger', vibe: 'smooth', f: 'loop', rx: ['Optics Compensation', 'Vignette'], desc: 'Une légère déformation d\'objectif grand-angle.' },
+    { id: 'leak', cat: 'fx', name: 'Light leak', sb: 'fuite de lumière', vibe: 'retro', f: 'loop', rx: ['Fractal Noise coloré', 'Mode Screen'], desc: 'Une fuite de lumière chaude générée, sans fichier externe.' },
+    { id: 'cold', cat: 'fx', name: 'Froid', sb: 'color grade', vibe: 'clean', f: 'loop', rx: ['Lumetri : température −', 'Saturation +'], desc: 'Étalonnage froid via Lumetri, avant / après.' },
+    { id: 'warm', cat: 'fx', name: 'Chaud', sb: 'color grade', vibe: 'clean', f: 'loop', rx: ['Lumetri : température +', 'Teinte'], desc: 'Étalonnage chaud via Lumetri, avant / après.' },
+    { id: 'punchy', cat: 'fx', name: 'Punchy', sb: 'color grade', vibe: 'aggro', f: 'loop', rx: ['Lumetri : contraste +', 'Vibrance +'], desc: 'Contraste et saturation poussés, avant / après.' },
+    // Styles
+    { id: 'val', cat: 'styles', name: 'Valorant', sb: '#ff4655 · condensé', vibe: 'clean', f: 'loop', w: 'ACE', rx: ['Couleur', 'Contour blanc', 'Barre'], desc: 'Rouge Valorant, contour blanc, typo condensée et barre de soulignement.' },
+    { id: 'cs2', cat: 'styles', name: 'CS2', sb: 'orange · gris', vibe: 'clean', f: 'loop', w: 'CLUTCH', rx: ['Couleur', 'Ombre en relief'], desc: 'Orange CS2 et ombre grise en relief.' },
+    { id: 'neon', cat: 'styles', name: 'Néon', sb: 'glow lavande', vibe: 'retro', f: 'loop', w: 'gg', rx: ['Glow empilé', 'Scintillement'], desc: 'Tube néon lavande avec un léger scintillement.' },
+    { id: 'double', cat: 'styles', name: 'Double contour', sb: 'noir · lavande', vibe: 'clean', f: 'loop', w: 'ACE', rx: ['Contour texte', 'Layer style Stroke'], desc: 'Deux contours empilés, couleurs réglables.' },
+    { id: 'grad', cat: 'styles', name: 'Gradient', sb: 'dégradé animé', vibe: 'smooth', f: 'loop', w: '1v5', rx: ['Gradient Ramp calé sur le texte'], desc: 'Un dégradé qui glisse dans les lettres.' },
+    { id: 'glitchs', cat: 'styles', name: 'Glitch', sb: 'RGB figé', vibe: 'glitch', f: 'loop', w: 'ACE', rx: ['RGB split fixe', 'Sauts ponctuels'], desc: 'Décalage RGB permanent avec des sauts ponctuels.' },
+  ];
+  const SFX = [
+    { id: 'whoosh_01', cat: 'whoosh', sb: 'aspiration courte', gen: 'whoosh', o: { dur: 0.7, lo: 260, hi: 4200 } },
+    { id: 'whoosh_03', cat: 'whoosh', sb: 'passage lent', gen: 'whoosh', o: { dur: 1.1, lo: 160, hi: 2600 } },
+    { id: 'impact_02', cat: 'impact', sb: 'coup sourd + sub', gen: 'impact', o: { dur: 1.3, f0: 120 } },
+    { id: 'impact_05', cat: 'impact', sb: 'claque sèche', gen: 'impact', o: { dur: 0.9, f0: 160 } },
+    { id: 'riser_01', cat: 'riser', sb: 'montée 2 s', gen: 'riser', o: { dur: 2 } },
+    { id: 'click_02', cat: 'click', sb: 'clic net', gen: 'click', o: { dur: 0.15 } },
+    { id: 'glitch_04', cat: 'glitch', sb: 'bégaiement numérique', gen: 'glitch', o: { dur: 0.75, seed: 4 } },
+    { id: 'bassdrop_01', cat: 'bass drop', sb: 'chute de sub', gen: 'drop', o: { dur: 1.6 } },
+  ];
+  const SFX_CATS = ['tout', 'whoosh', 'impact', 'riser', 'click', 'glitch', 'bass drop'];
+
+  // Courbes : bézier cubiques (comme cubic-bezier.com / Flow). Elastic = courbe spéciale calculée en expression.
+  const CURVE_LIB = [
+    { id: 'linear', name: 'Linear', b: [0, 0, 1, 1] },
+    { id: 'expo', name: 'Expo', b: [0.16, 1, 0.3, 1] },
+    { id: 'back', name: 'Back', b: [0.34, 1.56, 0.64, 1] },
+    { id: 'quint', name: 'Quint', b: [0.22, 1, 0.36, 1] },
+    { id: 'smooth', name: 'Smooth', b: [0.65, 0, 0.35, 1] },
+    { id: 'snap', name: 'Snap', b: [0.05, 0.9, 0.1, 1] },
+    { id: 'antic', name: 'Anticipate', b: [0.68, -0.55, 0.27, 1.55] },
+    { id: 'aggro', name: 'Agressive', b: [0.9, 0, 0.1, 1] },
+    { id: 'elastic', name: 'Elastic', b: [0.3, 1.9, 0.45, 0.9], special: true },
+  ];
+  const QUICK_CURVES = ['expo', 'back', 'quint', 'smooth', 'snap'];
+  const libCurve = (id) => CURVE_LIB.find((c) => c.id === id);
+  const elasticF = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI / 3)) + 1);
+  const easeCss = (c) => 'cubic-bezier(' + c.b.map((v) => +v.toFixed(3)).join(', ') + ')';
+  const SELS = [
+    { short: '2 calques · TITRE (T) + Clip_ace.mp4', text: 'TITRE', layer: 'Clip_ace.mp4' },
+    { short: '1 calque · Clip_ace.mp4', text: null, layer: 'Clip_ace.mp4' },
+    { short: 'aucun calque sélectionné', text: null, layer: null },
+  ];
+
+  const state = {
+    active: false, cat: 'impacts', dir: 'in', by: 'car', vibe: 'tous', intensity: 100,
+    curve: libCurve('back'), cust: {}, myCurves: [],
+    favs: new Set(['killhit', 'shaketwitch', 'velocity', 'pop']),
+    autoplay: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    q: '', sel: 0, sfxCat: 'tout', sfxAuto: true,
+  };
+  const cust = (id) => state.cust[id] || (state.cust[id] = {});
+  const framesOf = (p) => (p.f === 'loop' ? 'loop' : (state.cust[p.id] && state.cust[p.id].f) || p.f);
+  const curveOf = (p) => (state.cust[p.id] && state.cust[p.id].c) || null;
+  const loopOf = (p) => { const f = framesOf(p); return f === 'loop' ? 2.4 : 0.9 + f * 0.065; };
+  const tileVars = (p) => { const c = curveOf(p); return `--loop:${loopOf(p).toFixed(2)}s;${c ? '--ease:' + easeCss(c) + ';' : ''}`; };
+
+  // ---------------------------------------------------------------- previews
+  const letters = (word) => {
+    let i = 0, w = 0;
+    return Array.from(word).map((ch) => {
+      if (ch === ' ') { w++; return '<span class="sp"></span>'; }
+      return `<span class="ch" style="--i:${i++};--w:${w}">${esc(ch)}</span>`;
+    }).join('');
+  };
+  const size = (w) => (w.length > 6 ? ' md' : '');
+  const bg = (v) => `<div class="bgl${v ? ' ' + v : ''}"><i class="xh"></i></div>`;
+  const pvText = (p) => {
+    const sz = size(p.w);
+    if (p.id === 'type' || p.id === 'scramble') {
+      return bg() + `<div class="word${sz}"><span class="tick" data-kind="${p.id}" data-text="${esc(p.w)}">${esc(p.w)}</span>${p.id === 'type' ? '<span class="caret"></span>' : ''}</div>`;
+    }
+    if (p.id === 'feed') return bg('b') + '<div class="word sm">ACE</div><div class="feed"><b>YEXO</b><i></i><span>ENEMY</span></div>';
+    if (p.id === 'stomp') return `<div class="cam c-stomp">${bg()}<div class="word w-stomp">${letters(p.w)}</div></div>`;
+    const cls = { pop: 'w-pop', slide: 'w-slide', blur: 'w-blur', glitch: 'w-glitch', flip: 'w-flip', track: 'w-track', wave: 'w-wave', kin: 'w-kin' }[p.id];
+    return bg() + `<div class="word${sz} ${cls}" data-text="${esc(p.w)}">${p.id === 'track' ? esc(p.w) : letters(p.w)}</div>`;
+  };
+  const pvImpact = (p) => {
+    const w = (cls) => `<div class="word sm${cls ? ' ' + cls : ''}">ACE</div>`;
+    switch (p.id) {
+      case 'killhit': return `<div class="cam c-killhit">${bg('b')}${w('spike')}</div><div class="ov ov-hit"></div>`;
+      case 'shaketwitch': return `<div class="cam c-killhit"><div class="tw-sc">${bg('b')}${w()}</div></div>`;
+      case 'rgbpunch': return `<div class="cam c-rgbpunch">${bg('b')}${w('spike long')}</div>`;
+      case 'hspop': return `<div class="cam c-hspop">${bg()}${w()}</div><div class="ov ov-hit"></div>`;
+      case 'bassdrop': return `<div class="cam c-bass">${bg('b')}${w('spike')}</div>`;
+      case 'flicker': return `<div class="cam">${bg()}${w()}</div><div class="ov ov-strobe"></div>`;
+      case 'choppy': return `<div class="cam c-choppy">${bg('b')}${w()}</div>`;
+      case 'glowhit': return `<div class="cam">${bg('c')}${w('glowspike')}</div><div class="ov ov-bloom"></div>`;
+      case 'lenspunch': return `<div class="cam c-lens">${bg()}${w()}</div><div class="ov ov-lens"></div>`;
+      default: return `<div class="cam c-freeze">${bg('b')}${w()}</div><div class="ov ov-hit late"></div><span class="tagmap">freeze</span>`;
+    }
+  };
+  const pvShake = (p) => `<div class="cam c-${p.id}">${bg('b')}<div class="word sm">ACE</div></div>${p.id === 'impact' ? '<i class="ring-imp"></i>' : ''}`;
+  const pvTwitch = (p) => {
+    const inner = bg('b') + '<div class="word sm spike">ACE</div>';
+    switch (p.id) {
+      case 'tw-scale': return `<div class="cam"><div class="tw-sc">${inner}</div></div>`;
+      case 'tw-slide': return `<div class="cam c-twsl">${inner}</div>`;
+      case 'tw-light': return `<div class="cam c-twl">${bg('b')}<div class="word sm">ACE</div></div>`;
+      case 'tw-blur': return `<div class="cam c-twbl">${bg('b')}<div class="word sm">ACE</div></div>`;
+      case 'tw-time': return bg('b') + '<i class="runner r-twtime"></i>';
+      default: return `<div class="cam c-twl"><div class="layer c-twsl"><div class="tw-sc">${inner}</div></div></div>`;
+    }
+  };
+  const SPD = {
+    velocity: 'M3 6 C 12 6, 14 22, 24 22 S 37 6, 46 6',
+    slowkill: 'M3 6 C 13 6, 15 22, 24 22 L 46 22',
+    speedup: 'M3 22 L 24 22 C 32 22, 36 6, 46 6',
+    freeze: 'M3 9 L 18 9 L 18 23 L 31 23 L 31 9 L 46 9',
+    rewind: 'M3 9 L 22 9 L 22 21 L 30 21 L 30 9 L 46 9',
+    posterize: 'M3 20 h5 v-2 h5 v-2 h5 v-2 h5 v-2 h5 v-2 h5 v-2 h5 v-2 h5',
+  };
+  const curveD = (c, w, h, pad, y0, y1) => {
+    const X = (x) => (pad + x * (w - 2 * pad)).toFixed(1);
+    const Yv = (v) => (h - pad - ((v - y0) / (y1 - y0)) * (h - 2 * pad)).toFixed(1);
+    if (c.special) {
+      let d = '';
+      for (let i = 0; i <= 48; i++) { const t = i / 48; d += (i ? 'L' : 'M') + X(t) + ' ' + Yv(elasticF(t)); }
+      return d;
+    }
+    return `M${X(0)} ${Yv(0)} C${X(c.b[0])} ${Yv(c.b[1])} ${X(c.b[2])} ${Yv(c.b[3])} ${X(1)} ${Yv(1)}`;
+  };
+  const pvSpeed = (p) => {
+    if (p.id === 'marker') {
+      return bg('c') + '<div class="tl"><svg viewBox="0 0 120 120"><rect class="trk" x="8" y="34" width="104" height="10" rx="2"/><rect class="clip" x="8" y="34" width="60" height="10" rx="2"/><rect class="trk" x="8" y="50" width="104" height="10" rx="2"/><rect class="clip2" x="30" y="50" width="70" height="10" rx="2"/><text class="txt" x="8" y="26">V2</text><text class="txt" x="8" y="76">V1</text><g class="cti-move"><line class="cti" x1="10" y1="18" x2="10" y2="100"/></g>' +
+        [22, 47, 72, 97].map((x, i) => `<path class="mk mk-pop" style="animation-delay:${(i * 0.24).toFixed(2)}s" d="M${x - 3} 20h6v4l-3 3-3-3z"/>`).join('') + '</svg></div>';
+    }
+    if (p.id === 'beat') {
+      const hs = [8, 14, 30, 10, 6, 12, 36, 9, 7, 16, 28, 8, 6, 11, 34, 10, 8, 13, 26, 7];
+      return bg('c') + '<div class="tl"><svg viewBox="0 0 120 120">' + hs.map((h, i) => `<rect class="wf" x="${10 + i * 5}" y="${70 - h}" width="3" height="${h * 2}" rx="1"/>`).join('') +
+        [2, 6, 10, 14, 18].map((i, j) => (hs[i] > 25 ? `<path class="mk mk-pop" style="animation-delay:${(j * 0.18).toFixed(2)}s" d="M${11.5 + i * 5 - 3} 14h6v4l-3 3-3-3z"/>` : '')).join('') + '<text class="txt" x="10" y="110">SEUIL 60 %</text></svg></div>';
+    }
+    if (p.id === 'ease') {
+      return bg('c') + `<div class="tl"><svg viewBox="0 0 120 120"><line class="grid-l" x1="14" y1="96" x2="106" y2="96"/><line class="grid-l" x1="14" y1="34" x2="106" y2="34"/><path class="crv draw" d="${curveD(state.curve, 120, 120, 14, -0.3, 1.5)}"/><text class="txt" x="14" y="22">${esc(state.curve.name.toUpperCase())}</text></svg></div>`;
+    }
+    let ov = '';
+    if (p.id === 'freeze') ov = '<div class="ov ov-frz"></div><span class="tagmap">freeze</span>';
+    if (p.id === 'rewind') ov = '<div class="ov ov-rew"><div class="ov ov-vhs"></div></div>';
+    return bg('b') + `<i class="runner r-${p.id}"></i>${ov}<svg class="spd" viewBox="0 0 50 30" aria-hidden="true"><line x1="3" y1="14" x2="46" y2="14"/><path d="${SPD[p.id]}"/></svg>`;
+  };
+  const pvTrans = (p) => {
+    const k = 't-' + p.id;
+    const wc = p.id === 'rgbshake' ? 'word rgbjit' : 'word';
+    return `<div class="sh a ${k}">${bg('a')}<span class="tagmap">ascent</span><div class="${wc}">A</div></div><div class="sh b ${k}">${bg('b')}<span class="tagmap">bind</span><div class="${wc}">B</div></div>` +
+      (p.id === 'tflash' || p.id === 'whiteglitch' ? '<div class="ov ov-tflash"></div>' : '');
+  };
+  const pvFx = (p) => {
+    const id = p.id;
+    if (id === 'grain') return bg() + '<div class="word">ACE</div><div class="ov ov-grain"></div>';
+    if (id === 'rgb') return bg('b') + '<div class="word fx-rgb">ACE</div>';
+    if (id === 'glow') return bg('c') + '<div class="word fx-glow">ACE</div>';
+    if (id === 'vhs') return bg() + '<div class="word fx-vhs">REC</div><div class="ov ov-vhs"></div>';
+    if (id === 'vig') return bg('b') + '<div class="word">ACE</div><div class="ov ov-vig"></div>';
+    if (id === 'letterbox') return bg('b') + '<div class="word">ACE</div><i class="lb t"></i><i class="lb b2"></i>';
+    if (id === 'lens') return `<div class="cam c-lensfx">${bg()}<div class="word">ACE</div></div>`;
+    if (id === 'leak') return bg('c') + '<div class="word">ACE</div><div class="ov ov-leak"></div>';
+    return bg() + '<div class="word">ACE</div>' + `<div class="grade ${id}">${bg()}<div class="word">ACE</div></div><i class="split"></i><span class="tagmap">avant · après</span>`;
+  };
+  const pvStyle = (p) => {
+    const sz = p.id === 'double' || p.id === 'cs2' ? size(p.w) : '';
+    return bg('c') + `<div class="word${sz} st-${p.id}">${esc(p.w)}</div>${p.id === 'val' ? '<i class="bar"></i>' : ''}`;
+  };
+  const PV = { impacts: pvImpact, text: pvText, shake: pvShake, twitch: pvTwitch, speed: pvSpeed, trans: pvTrans, fx: pvFx, styles: pvStyle };
+  const pvInner = (p) => PV[p.cat](p) + `<span class="br"></span><div class="state"><span class="ring"></span><span class="ok">${ico('check')}</span></div>`;
+
+  // ---------------------------------------------------------------- tickers (typewriter, scramble)
+  const GLYPHS = '!<>-_\\/[]{}=+*^?#ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
+  const tickStart = performance.now();
+  const tickLoop = (now) => {
+    $$('.tick').forEach((el) => {
+      const tile = el.closest('.tile');
+      const playing = state.autoplay || !tile || tile.matches(':hover, :focus-within');
+      const txt = el.dataset.text;
+      if (!playing) { if (el.textContent !== txt) el.textContent = txt; return; }
+      const host = el.closest('[style*="--loop"]');
+      const loopMs = host ? parseFloat(host.style.getPropertyValue('--loop')) * 1000 * 1.4 : 2400;
+      const t = ((now - tickStart) % loopMs) / loopMs;
+      if (el.dataset.kind === 'type') {
+        let n;
+        if (t < 0.5) n = Math.floor((t / 0.5) * (txt.length + 1));
+        else if (t < 0.82) n = txt.length;
+        else n = Math.max(0, Math.round(txt.length * (1 - (t - 0.82) / 0.14)));
+        el.textContent = txt.slice(0, Math.min(n, txt.length));
+      } else {
+        let out = '';
+        for (let i = 0; i < txt.length; i++) {
+          if (txt[i] === ' ') { out += ' '; continue; }
+          out += (t > 0.12 + i * 0.07 && t < 0.86) ? txt[i] : GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+        }
+        el.textContent = out;
+      }
+    });
+    setTimeout(() => requestAnimationFrame(tickLoop), 55);
+  };
+  requestAnimationFrame(tickLoop);
+
+  // ---------------------------------------------------------------- audio (généré en direct)
+  const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const bandpass = (x, sr, fcAt, q) => {
+    const y = new Float32Array(x.length);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let n = 0; n < x.length; n++) {
+      const w = 2 * Math.PI * Math.min(fcAt(n / sr), sr * 0.45) / sr;
+      const al = Math.sin(w) / (2 * q), a0 = 1 + al, a1 = -2 * Math.cos(w), a2 = 1 - al;
+      const o = (al * x[n] - al * x2 - a1 * y1 - a2 * y2) / a0;
+      x2 = x1; x1 = x[n]; y2 = y1; y1 = o; y[n] = o;
+    }
+    return y;
+  };
+  const normalize = (y) => { let m = 0; for (let i = 0; i < y.length; i++) m = Math.max(m, Math.abs(y[i])); if (m > 0) for (let i = 0; i < y.length; i++) y[i] *= 0.9 / m; return y; };
+  const GEN = {
+    whoosh(sr, o) { const n = Math.floor(sr * o.dur), r = rng(7), x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = r() * 2 - 1; const y = bandpass(x, sr, (t) => o.lo + (o.hi - o.lo) * Math.pow(Math.sin(Math.PI * t / o.dur), 2), 1.4); for (let i = 0; i < n; i++) y[i] *= Math.pow(Math.sin(Math.PI * i / n), 1.6); return normalize(y); },
+    impact(sr, o) { const n = Math.floor(sr * o.dur), r = rng(3), y = new Float32Array(n); let ph = 0, lp = 0; for (let i = 0; i < n; i++) { const t = i / sr; ph += 2 * Math.PI * (42 + o.f0 * Math.exp(-t * 16)) / sr; lp += ((r() * 2 - 1) - lp) * 0.25; y[i] = Math.tanh(1.8 * (Math.sin(ph) * Math.exp(-t * 4.2) + lp * 1.6 * Math.exp(-t * 55))); } return normalize(y); },
+    riser(sr, o) { const n = Math.floor(sr * o.dur), r = rng(11), x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = r() * 2 - 1; const y = bandpass(x, sr, (t) => 300 * Math.pow(20, t / o.dur), 2.2); let ph = 0; for (let i = 0; i < n; i++) { const t = i / sr, e = Math.pow(t / o.dur, 2.2); ph += (220 * Math.pow(4, t / o.dur)) / sr; y[i] = (y[i] * 1.2 + ((ph % 1) * 2 - 1) * 0.12) * e * (i > n - sr * 0.01 ? (n - i) / (sr * 0.01) : 1); } return normalize(y); },
+    click(sr, o) { const n = Math.floor(sr * o.dur), r = rng(5), y = new Float32Array(n); for (let i = 0; i < n; i++) { const t = i / sr; y[i] = (r() * 2 - 1) * Math.exp(-t * 420) + Math.sin(2 * Math.PI * 2600 * t) * Math.exp(-t * 90) * 0.6; } return normalize(y); },
+    glitch(sr, o) { const n = Math.floor(sr * o.dur), r = rng(o.seed || 1), y = new Float32Array(n), seg = Math.floor(sr * 0.045); let f = 400, on = true, hold = 0, held = 0; for (let i = 0; i < n; i++) { if (i % seg === 0) { f = 150 + r() * 1500; on = r() > 0.25; } if (hold-- <= 0) { hold = 3 + Math.floor(r() * 9); held = on ? (Math.sin(2 * Math.PI * f * i / sr) > 0 ? 1 : -1) * (0.5 + r() * 0.5) : 0; } y[i] = Math.round(held * 4) / 4; } return normalize(y); },
+    drop(sr, o) { const n = Math.floor(sr * o.dur), y = new Float32Array(n); let ph = 0; for (let i = 0; i < n; i++) { const t = i / sr; ph += 2 * Math.PI * (30 + 75 * Math.exp(-t * 2.4)) / sr; y[i] = Math.tanh(2.4 * Math.sin(ph)) * Math.min(1, t / 0.01) * Math.exp(-t * 1.25); } return normalize(y); },
+  };
+  const sfxById = (id) => SFX.find((s) => s.id === id);
+  const lowRes = new Map();
+  const drawWave = (canvas, s, prog) => {
+    if (!canvas || !s) return;
+    if (!lowRes.has(s.id)) lowRes.set(s.id, GEN[s.gen](8000, s.o));
+    const data = lowRes.get(s.id);
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(40, canvas.clientWidth), h = canvas.clientHeight || 26;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const c = canvas.getContext('2d');
+    c.scale(dpr, dpr);
+    const css = getComputedStyle(document.documentElement);
+    const on = css.getPropertyValue('--accent').trim(), off = css.getPropertyValue('--surface-3').trim();
+    const bars = Math.floor(w / 3), per = Math.max(1, Math.floor(data.length / bars));
+    for (let b = 0; b < bars; b++) {
+      let m = 0;
+      for (let i = b * per; i < (b + 1) * per; i++) m = Math.max(m, Math.abs(data[i] || 0));
+      const bh = Math.max(1.5, m * (h - 2));
+      c.fillStyle = (prog !== undefined && b / bars <= prog) ? on : off;
+      c.fillRect(b * 3, (h - bh) / 2, 2, bh);
+    }
+  };
+  let actx = null, playing = null;
+  const stopSfx = () => {
+    if (!playing) return;
+    try { playing.src.stop(); } catch (e) { /* déjà arrêté */ }
+    const { btn, s, canvas } = playing;
+    playing = null;
+    if (btn) { btn.setAttribute('aria-pressed', 'false'); btn.innerHTML = ico('play'); }
+    if (canvas) drawWave(canvas, s);
+  };
+  const playSfx = (id, btn, canvas) => {
+    const s = sfxById(id);
+    if (!s) return;
+    if (playing && playing.s.id === id) { stopSfx(); return; }
+    stopSfx();
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const data = GEN[s.gen](actx.sampleRate, s.o);
+      const buf = actx.createBuffer(1, data.length, actx.sampleRate);
+      buf.copyToChannel(data, 0);
+      const src = actx.createBufferSource();
+      const gain = actx.createGain();
+      gain.gain.value = 0.8;
+      src.buffer = buf;
+      src.connect(gain).connect(actx.destination);
+      const t0 = actx.currentTime;
+      src.start();
+      playing = { s, src, btn, canvas };
+      if (btn) { btn.setAttribute('aria-pressed', 'true'); btn.innerHTML = ico('stop'); }
+      src.onended = () => { if (playing && playing.src === src) stopSfx(); };
+      const step = () => { if (!playing || playing.src !== src) return; drawWave(canvas, s, (actx.currentTime - t0) / s.o.dur); requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    } catch (e) {
+      toast('err', 'Lecture audio impossible', 'Le navigateur bloque le son ici.');
+    }
+  };
+
+  // ---------------------------------------------------------------- toast
+  let toastTimer = null;
+  const toast = (kind, t1, t2, action) => {
+    const el = $('#toast');
+    el.className = 'toast' + (kind === 'err' ? ' err' : '');
+    el.innerHTML = `<span class="ti">${ico(kind === 'err' ? 'alert' : 'check')}</span><div class="tx"><div class="t1">${esc(t1)}</div>${t2 ? `<div class="t2">${esc(t2)}</div>` : ''}</div>` + (action ? `<button class="mini" type="button" id="toastAct">${esc(action.label)}</button>` : '');
+    if (action) $('#toastAct').addEventListener('click', action.run);
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), action ? 5200 : 3400);
+  };
+
+  // ---------------------------------------------------------------- application d'un preset (simulée)
+  const cti = '0:00:04:12';
+  const dirLabel = () => ({ in: 'Entrée', out: 'Sortie', both: 'Entrée + sortie' }[state.dir]);
+  const fLabel = (p) => { const f = framesOf(p); return f === 'loop' ? 'continu' : `${f} f (${fr(f / 60)} s)`; };
+  const cName = (p) => (curveOf(p) || state.curve).name;
+  const apply = (p, tile) => {
+    const sel = SELS[state.sel];
+    if (p.id === 'ease') { openCurve('keys'); return; }
+    if ((p.cat === 'text' || p.cat === 'styles') && !sel.text) { toast('err', 'Sélectionne un calque texte', "Ce preset agit sur un calque texte (T). Rien n'a été modifié."); return; }
+    if (p.cat === 'speed' && !sel.layer && p.id !== 'beat') { toast('err', 'Sélectionne le clip', 'Ce preset agit sur un clip (Time Remapping ou marker). Rien n\'a été modifié.'); return; }
+    if (tile) {
+      tile.classList.add('applying');
+      setTimeout(() => { tile.classList.remove('applying'); tile.classList.add('done'); }, 420);
+      setTimeout(() => tile.classList.remove('done'), 1300);
+    }
+    const Name = p.name.replace(/[^A-Za-z0-9]/g, '');
+    const target = sel.text || sel.layer;
+    let t1, t2;
+    if (p.cat === 'impacts') { t1 = `${p.name} posé au CTI`; t2 = `adjustment YFX_${Name} · ${p.rx.length} effets · ${fLabel(p)} · ${cName(p)}`; }
+    else if (p.cat === 'text') { t1 = `${p.name} · ${dirLabel()} sur ${sel.text}`; t2 = `animator YFX_${Name} · ${fLabel(p)} · ${cName(p)}`; }
+    else if (p.cat === 'styles') { t1 = `Style ${p.name} appliqué sur ${sel.text}`; t2 = 'couleurs réglables dans Effect Controls'; }
+    else if (p.cat === 'trans') { t1 = `${p.name} posée sur la coupe`; t2 = `adjustment YFX_${Name} à ${cti} · ${fLabel(p)}`; }
+    else if (p.cat === 'speed') {
+      if (p.id === 'marker') { t1 = `Marker posé à ${cti}`; t2 = `sur ${sel.layer} · les impacts YFX se déclencheront dessus`; }
+      else if (p.id === 'beat') { t1 = 'Beat sync : 24 markers posés'; t2 = 'calque YFX_Beats · seuil 60 % · simulation'; }
+      else { t1 = `${p.name} appliqué sur ${sel.layer}`; t2 = `Time Remapping · ${fLabel(p)} · courbe ${cName(p)}`; }
+    } else if (target) { t1 = `${p.name} appliqué sur ${target}`; t2 = `contrôles YFX_${Name} · ${fLabel(p)}`; }
+    else { t1 = `Calque YFX_${Name} ajouté`; t2 = `adjustment au CTI ${cti} · ${fLabel(p)}`; }
+    t2 += ' · Ctrl+Z annule';
+    const autoSfx = p.sfx && (p.cat === 'trans' || p.cat === 'impacts' || p.cat === 'shake') && state.sfxAuto;
+    if (autoSfx) t2 = `+ ${p.sfx} placé · ` + t2;
+    toast('ok', t1, t2, p.sfx && !autoSfx ? { label: '+ ' + p.sfx, run: () => toast('ok', p.sfx + ' importé', `rangé dans YFX_SFX · placé à ${cti}`) } : null);
+  };
+
+  // ---------------------------------------------------------------- rendu
+  const countOf = (cat) => (cat === 'audio' ? SFX.length : cat === 'fav' ? state.favs.size : P.filter((p) => p.cat === cat).length);
+  const renderCats = () => {
+    $('#cats').innerHTML = CATS.map((c) => `<button type="button" data-cat="${c.id}" aria-pressed="${!state.q && state.cat === c.id}">${c.id === 'fav' ? '★ ' : ''}${c.label}<sup>${countOf(c.id)}</sup></button>`).join('');
+  };
+  const durHTML = (p) => {
+    const f = framesOf(p);
+    if (f === 'loop') return '<div class="durctl"><span>loop</span></div>';
+    const custom = state.cust[p.id] && state.cust[p.id].f;
+    return `<div class="durctl${custom ? ' custom' : ''}"><button type="button" data-act="dminus" aria-label="Raccourcir ${esc(p.name)}">−</button><span>${f} f</span><button type="button" data-act="dplus" aria-label="Allonger ${esc(p.name)}">+</button></div>`;
+  };
+  const tileHTML = (p, showCat) => `
+    <article class="tile" data-id="${p.id}" style="${tileVars(p)}">
+      <div class="pvbox">
+        <div class="pv">${pvInner(p)}</div>
+        ${durHTML(p)}
+        ${curveOf(p) ? '<span class="mark-c">courbe perso</span>' : ''}
+        <button class="star" type="button" data-act="fav" aria-pressed="${state.favs.has(p.id)}" aria-label="Favori">${ico('fav')}</button>
+      </div>
+      <div class="meta"><div class="nm">${esc(p.name)}</div><div class="sb">${esc(showCat ? CATS.find((c) => c.id === p.cat).label.toLowerCase() + ' · ' + p.sb : p.sb)}</div></div>
+      <button class="hit" type="button" data-act="apply" aria-label="Appliquer ${esc(p.name)}"></button>
+      <button class="more" type="button" data-act="more" aria-label="Fiche de ${esc(p.name)}">${ico('more')}</button>
+    </article>`;
+  const gridHTML = (list, showCat) => `<div class="grid${state.autoplay ? '' : ' hover-only'}${state.dir === 'out' ? ' out' : ''}">${list.map((p) => tileHTML(p, showCat)).join('')}</div>`;
+  const sfxRowHTML = (s, label) => `
+    <div class="sfx" data-sfx="${s.id}">
+      <button class="play" type="button" data-act="play" aria-pressed="false" aria-label="Écouter ${s.id}">${ico('play')}</button>
+      <div class="top"><span class="nm">${s.id}</span><span class="sb">${label ? esc(label) : fr(s.o.dur, 1) + ' s · ' + esc(s.sb)}</span></div>
+      <div class="bot"><canvas aria-hidden="true"></canvas>${label ? '' : '<button class="mini" type="button" data-act="cti">Au CTI</button><button class="mini" type="button" data-act="markers">Markers</button>'}</div>
+    </div>`;
+  const secHead = (icon, title, cmd, right) => `<div class="sec-head"><span class="sec-icon">${ico(icon)}</span><div class="grow"><h2>${esc(title)}</h2><div class="cmd">${esc(cmd)}</div></div><span class="label">${esc(right)}</span></div>`;
+  const chips = (key, opts) => `<div class="chips" role="group">${opts.map(([v, l]) => `<button type="button" data-${key}="${v}" aria-pressed="${state[key] === v}">${esc(l)}</button>`).join('')}</div>`;
+
+  const renderView = () => {
+    const view = $('#view');
+    stopSfx();
+    let html = '';
+    if (state.q) {
+      const toks = norm(state.q).split(/\s+/).filter(Boolean);
+      const hit = (s) => { const n = norm(s); return toks.every((t) => n.includes(t)); };
+      const ps = P.filter((p) => hit([p.name, p.sb, p.desc, p.rx.join(' '), VIBES[p.vibe], CATS.find((c) => c.id === p.cat).label].join(' ')));
+      const ss = SFX.filter((s) => hit([s.id, s.cat, s.sb, 'audio son sfx'].join(' ')));
+      const n = ps.length + ss.length;
+      html += secHead('search', 'Recherche', `grep -ri "${state.q}" ~/presets`, `${n} résultat${n > 1 ? 's' : ''}`);
+      if (ps.length) html += gridHTML(ps, true);
+      if (ss.length) html += `<div class="sfx-list">${ss.map((s) => sfxRowHTML(s)).join('')}</div>`;
+      if (!n) html += `<div class="empty">Aucun preset ni son pour « ${esc(state.q)} ».<span class="cmd">essaie : twitch, rgb, velocity, whoosh</span></div>`;
+    } else if (state.cat === 'audio') {
+      const list = SFX.filter((s) => state.sfxCat === 'tout' || s.cat === state.sfxCat);
+      html += secHead('audio', 'Audio', 'ls ~/sfx', `${list.length} sons`);
+      html += `<div class="filters">${chips('sfxCat', SFX_CATS.map((c) => [c, c]))}</div>`;
+      html += `<div class="sfx-list">${list.map((s) => sfxRowHTML(s)).join('')}</div>`;
+    } else if (state.cat === 'fav') {
+      const list = P.filter((p) => state.favs.has(p.id));
+      html += secHead('fav', 'Favoris', 'cat ~/.yexofx/favoris', `${list.length} épinglés`);
+      html += list.length ? gridHTML(list, true) : '<div class="empty">Aucun favori.<span class="cmd">clique ★ sur un preset pour l\'épingler ici</span></div>';
+    } else {
+      const c = CATS.find((x) => x.id === state.cat);
+      const all = P.filter((p) => p.cat === state.cat);
+      const vibesHere = Object.keys(VIBES).filter((v) => all.some((p) => p.vibe === v));
+      if (state.vibe !== 'tous' && !vibesHere.includes(state.vibe)) state.vibe = 'tous';
+      const list = all.filter((p) => state.vibe === 'tous' || p.vibe === state.vibe);
+      html += secHead(c.id, c.label, c.cmd, `${list.length} presets`);
+      html += '<div class="filters">' + chips('vibe', [['tous', 'tous']].concat(vibesHere.map((v) => [v, VIBES[v]]))) + '</div>';
+      if (c.id === 'text') html += `<div class="filters">${chips('dir', [['in', 'Entrée'], ['out', 'Sortie'], ['both', 'In + Out']])}<span class="label">par</span>${chips('by', [['car', 'car.'], ['mot', 'mot'], ['ligne', 'ligne']])}</div>`;
+      html += gridHTML(list, false);
+    }
+    view.innerHTML = html;
+    $$('.sfx canvas', view).forEach((cv) => drawWave(cv, sfxById(cv.closest('.sfx').dataset.sfx)));
+    renderCats();
+  };
+
+  const applyVars = () => {
+    const panel = $('#panel');
+    panel.style.setProperty('--k', (state.intensity / 100).toFixed(2));
+    panel.style.setProperty('--ease', easeCss(state.curve));
+    panel.style.setProperty('--sc', state.by === 'car' ? '55ms' : '0ms');
+    panel.style.setProperty('--sw', state.by === 'mot' ? '200ms' : '0ms');
+    $('#tuneVals').textContent = `${state.intensity} % · courbe ${state.curve.name} · durées par preset`;
+    $('#intensityV').textContent = state.intensity + ' %';
+    $('#intensity').style.setProperty('--p', (state.intensity / 2) + '%');
+    $('#curveV').textContent = state.curve.name;
+    $$('#curves .cbtn[data-curve]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.curve === state.curve.id)));
+  };
+  const renderQuickCurves = () => {
+    $('#curves').innerHTML = QUICK_CURVES.map((id) => { const c = libCurve(id); return `<button class="cbtn" type="button" data-curve="${id}" aria-label="${c.name}" title="${c.name}"><svg viewBox="0 0 40 26" aria-hidden="true"><path d="${curveD(c, 40, 26, 4, -0.3, 1.5)}"/></svg></button>`; }).join('') +
+      `<button class="cbtn edit" type="button" data-act="curve-edit" title="Éditeur de courbe">${ico('curve')}Éditer</button>`;
+  };
+  const renderSel = () => { const s = SELS[state.sel]; $('#selPill').innerHTML = `<span class="dot${s.layer ? '' : ' off'}"></span>${esc(s.short)}`; };
+
+  // met à jour une vignette (durée / courbe) sans tout re-rendre
+  const refreshTile = (p) => {
+    $$(`#view .tile[data-id="${p.id}"]`).forEach((t) => {
+      t.setAttribute('style', tileVars(p));
+      const d = t.querySelector('.durctl');
+      if (d && p.f !== 'loop') {
+        d.querySelector('span').textContent = framesOf(p) + ' f';
+        d.classList.toggle('custom', !!(state.cust[p.id] && state.cust[p.id].f));
+      }
+      let m = t.querySelector('.mark-c');
+      if (curveOf(p) && !m) { m = document.createElement('span'); m.className = 'mark-c'; m.textContent = 'courbe perso'; t.querySelector('.pvbox').appendChild(m); }
+      if (!curveOf(p) && m) m.remove();
+    });
+  };
+  const setFrames = (p, v) => {
+    if (p.f === 'loop') return;
+    const f = Math.max(2, Math.min(120, Math.round(v)));
+    cust(p.id).f = f === p.f ? undefined : f;
+    refreshTile(p);
+    if (!$('#sheet').hidden && sheetCtx.kind === 'detail' && sheetCtx.id === p.id) syncDetail(p);
+  };
+
+  // ---------------------------------------------------------------- feuilles
+  let sheetCtx = { kind: null };
+  const openSheet = (html, ctx) => {
+    stopSfx();
+    sheetCtx = ctx || { kind: null };
+    const sh = $('#sheet');
+    sh.innerHTML = `<div class="sheet-card" role="dialog" aria-modal="true">${html}</div>`;
+    sh.hidden = false;
+    const first = sh.querySelector('button');
+    if (first) first.focus();
+  };
+  const closeSheet = () => { stopSfx(); $('#sheet').hidden = true; $('#sheet').innerHTML = ''; sheetCtx = { kind: null }; };
+  const head = (label, title) => `<div class="sheet-head"><div class="grow"><div class="label">${esc(label)}</div><h3>${esc(title)}</h3></div><button class="ibtn" type="button" data-act="close" aria-label="Fermer">${ico('x')}</button></div>`;
+
+  // fiche d'un preset
+  const openDetail = (p) => {
+    const sfx = p.sfx ? sfxById(p.sfx) : null;
+    const cat = CATS.find((c) => c.id === p.cat).label;
+    const loop = p.f === 'loop';
+    openSheet(`
+      ${head(cat + ' · ' + VIBES[p.vibe], p.name)}
+      <div class="grid${state.dir === 'out' ? ' out' : ''}" style="padding:0;grid-template-columns:1fr"><div class="tile" data-id="${p.id}" id="detailTile" style="padding:0;border:0;background:none;${tileVars(p)}"><div class="pv big">${pvInner(p)}</div></div></div>
+      <p class="desc">${esc(p.desc)}</p>
+      <div><div class="label" style="margin-bottom:6px">Recette</div><div class="recipe">${p.rx.map((r, i) => (i ? '<span class="plus">+</span>' : '') + `<span class="pill">${esc(r)}</span>`).join('')}</div></div>
+      <div class="box">
+        <div class="box-row"><span class="label grow">Durée</span>${loop ? '<span class="hint">effet continu : il dure autant que le calque</span>' : `<span class="stepper"><button type="button" data-act="d-minus" aria-label="Raccourcir">−</button><output id="dOut"></output><button type="button" data-act="d-plus" aria-label="Allonger">+</button></span>`}</div>
+        ${loop ? '' : `<div class="box-row">${chips('dlen', [['0.5', 'court'], ['1', 'normal'], ['2', 'long']])}<span class="hint grow" id="dHint" style="text-align:right"></span></div>`}
+      </div>
+      <div class="box">
+        <div class="box-row"><span class="label grow">Courbe</span><svg viewBox="0 0 40 26" width="40" height="26" aria-hidden="true" style="overflow:visible"><path id="dCurve" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/></svg><span class="mono" id="dCurveName" style="font:500 12px var(--font-mono)"></span></div>
+        <div class="box-row"><button class="btn ghost sm" type="button" data-act="d-curve">${ico('curve')}Éditer la courbe</button><button class="btn ghost sm" type="button" data-act="d-curve-reset" id="dReset">Revenir à la courbe globale</button></div>
+      </div>
+      ${p.cat === 'text' ? `<div class="filters" style="padding:0">${chips('dir', [['in', 'Entrée'], ['out', 'Sortie'], ['both', 'In + Out']])}</div>` : ''}
+      ${sfx ? sfxRowHTML(sfx, 'SFX suggéré') : ''}
+      <div class="row-btns"><button class="btn primary" type="button" data-act="apply-detail" data-id="${p.id}">Appliquer</button><button class="btn ghost" type="button" data-act="fav-detail" data-id="${p.id}">${state.favs.has(p.id) ? '★ Retirer' : '☆ Favori'}</button></div>
+      <div class="hint">Dans AE, la durée et la courbe restent réglables après coup : contrôles « Durée » et « Courbe » sur le calque YFX.</div>`, { kind: 'detail', id: p.id });
+    syncDetail(p);
+    const cv = $('#sheet canvas');
+    if (cv && sfx) drawWave(cv, sfx);
+  };
+  const syncDetail = (p) => {
+    const sh = $('#sheet');
+    const dt = $('#detailTile', sh);
+    if (dt) dt.setAttribute('style', `padding:0;border:0;background:none;${tileVars(p)}`);
+    const f = framesOf(p);
+    if (f !== 'loop') {
+      $('#dOut', sh).textContent = f + ' f';
+      $('#dHint', sh).textContent = `${fr(f / 60)} s à 60 fps · défaut ${p.f} f`;
+      $$('[data-dlen]', sh).forEach((b) => b.setAttribute('aria-pressed', String(Math.round(p.f * Number(b.dataset.dlen)) === f)));
+    }
+    const c = curveOf(p) || state.curve;
+    $('#dCurve', sh).setAttribute('d', curveD(c, 40, 26, 4, -0.3, 1.5));
+    $('#dCurveName', sh).textContent = c.name + (curveOf(p) ? ' (perso)' : ' (globale)');
+    $('#dReset', sh).hidden = !curveOf(p);
+  };
+
+  const openSettings = () => {
+    openSheet(`
+      ${head('yfx config', 'Réglages du panel')}
+      <div>
+        <div class="set-row"><div><div class="t1">Lecture auto des previews</div><div class="t2">sinon : au survol seulement</div></div><button class="sw" type="button" role="switch" data-act="sw-auto" aria-checked="${state.autoplay}" aria-label="Lecture auto"></button></div>
+        <div class="set-row"><div><div class="t1">SFX auto avec impacts et transitions</div><div class="t2">place le son suggéré en même temps</div></div><button class="sw" type="button" role="switch" data-act="sw-sfx" aria-checked="${state.sfxAuto}" aria-label="SFX auto"></button></div>
+        <div class="set-row"><div><div class="t1">Durées et courbes perso</div><div class="t2">${Object.keys(state.cust).filter((k) => state.cust[k].f || state.cust[k].c).length} preset(s) modifié(s)</div></div><button class="mini" type="button" data-act="reset-cust">Tout remettre par défaut</button></div>
+        <div class="set-row"><div><div class="t1">Dossier assets</div><div class="t2">Documents\\YexoFX_assets</div></div><button class="mini" type="button">Changer</button></div>
+        <div class="set-row"><div><div class="t1">Licence</div><div class="t2">YFX-7Q2K-•••• · PC-YEXO-7F3A</div></div><button class="mini" type="button" data-act="relock">Désactiver ce PC</button></div>
+      </div>`, { kind: 'settings' });
+  };
+
+  // ---------------------------------------------------------------- éditeur de courbe (façon Flow)
+  const GX0 = 34, GX1 = 196, GY0 = 196, GY1 = 24, VMIN = -0.5, VMAX = 1.5;
+  const gx = (t) => GX0 + t * (GX1 - GX0);
+  const gy = (v) => GY0 - ((v - VMIN) / (VMAX - VMIN)) * (GY0 - GY1);
+  const ce = { b: [0.34, 1.56, 0.64, 1], name: 'Back', special: false, target: 'global', baseId: 'back', dirty: false };
+  const openCurve = (target) => {
+    const p = P.find((x) => x.id === target);
+    const start = p ? (curveOf(p) || state.curve) : state.curve;
+    Object.assign(ce, { b: start.b.slice(), name: start.name, special: !!start.special, target, baseId: start.id, dirty: false });
+    const title = target === 'global' ? 'Courbe par défaut' : target === 'keys' ? 'Courbe pour tes keyframes' : `Courbe de ${p.name}`;
+    const useLabel = target === 'global' ? 'Utiliser par défaut' : target === 'keys' ? 'Appliquer aux keyframes sélectionnées' : `Utiliser pour ${p.name}`;
+    openSheet(`
+      ${head('éditeur de courbe', title)}
+      <svg class="ce-graph" id="ceSvg" viewBox="0 0 220 220" role="img" aria-label="Courbe d'easing éditable">
+        <rect class="zone" x="${GX0}" y="${GY1}" width="${GX1 - GX0}" height="${gy(1) - GY1}"/>
+        <rect class="zone" x="${GX0}" y="${gy(0)}" width="${GX1 - GX0}" height="${GY0 - gy(0)}"/>
+        ${[0.25, 0.5, 0.75].map((t) => `<line class="g" x1="${gx(t)}" y1="${GY1}" x2="${gx(t)}" y2="${GY0}"/>`).join('')}
+        <line class="g strong" x1="${GX0}" y1="${gy(0)}" x2="${GX1}" y2="${gy(0)}"/><line class="g strong" x1="${GX0}" y1="${gy(1)}" x2="${GX1}" y2="${gy(1)}"/>
+        <line class="g strong" x1="${GX0}" y1="${GY1}" x2="${GX0}" y2="${GY0}"/><line class="g strong" x1="${GX1}" y1="${GY1}" x2="${GX1}" y2="${GY0}"/>
+        <path class="ref" d="M${gx(0)} ${gy(0)} L${gx(1)} ${gy(1)}"/>
+        <text x="${GX0 - 6}" y="${gy(1) + 3}" text-anchor="end">1</text><text x="${GX0 - 6}" y="${gy(0) + 3}" text-anchor="end">0</text>
+        <text x="${GX0 + 4}" y="${GY1 + 10}">DÉPASSEMENT</text><text x="${GX1 - 4}" y="${GY0 + 14}" text-anchor="end">TEMPS →</text>
+        <line class="arm" id="ceA1"/><line class="arm" id="ceA2"/>
+        <path class="crv" id="ceCrv"/>
+        <circle class="end" cx="${gx(0)}" cy="${gy(0)}" r="3.5"/><circle class="end" cx="${gx(1)}" cy="${gy(1)}" r="3.5"/>
+        <g id="ceH1"><circle class="hdl-hit" r="14"/><circle class="hdl" r="6.5" tabindex="0" data-h="1" aria-label="Poignée 1 : flèches pour déplacer"/></g>
+        <g id="ceH2"><circle class="hdl-hit" r="14"/><circle class="hdl" r="6.5" tabindex="0" data-h="2" aria-label="Poignée 2 : flèches pour déplacer"/></g>
+      </svg>
+      <div class="hint" id="ceNote" style="text-align:center"></div>
+      <div class="ce-read"><code id="ceCode"></code><button class="mini" type="button" data-act="ce-copy">Copier</button></div>
+      <div class="ce-demos" id="ceDemos"><div class="ce-track"><i class="ce-ball"></i></div><div class="ce-sq"><i></i></div></div>
+      <div><div class="label" style="margin-bottom:6px">Bibliothèque</div><div class="ce-lib" id="ceLib"></div></div>
+      <div class="row-btns"><button class="btn primary" type="button" data-act="ce-use">${esc(useLabel)}</button><button class="btn ghost" type="button" data-act="ce-save">Enregistrer</button></div>
+      ${p ? `<button class="btn ghost sm" type="button" data-act="ce-back" data-id="${p.id}">${ico('back')}Retour à la fiche</button>` : ''}
+      <div class="hint">Même format que cubic-bezier.com et Flow. Dans AE : courbe appliquée à l'expression du preset, ou convertie en easing de keyframes (vitesse + influence).</div>`, { kind: 'curve', target });
+    renderCeLib();
+    drawCe();
+    bindCeDrag();
+  };
+  const renderCeLib = () => {
+    const all = CURVE_LIB.concat(state.myCurves);
+    $('#ceLib').innerHTML = all.map((c) => `<button type="button" data-cid="${c.id}" aria-pressed="${!ce.dirty && ce.baseId === c.id}"><svg viewBox="0 0 44 28" aria-hidden="true"><path d="${curveD(c, 44, 28, 4, -0.6, 1.6)}"/></svg><span>${esc(c.name)}</span></button>`).join('');
+  };
+  const drawCe = () => {
+    const [x1, y1, x2, y2] = ce.b;
+    const sv = $('#ceSvg');
+    if (!sv) return;
+    let d = `M${gx(0)} ${gy(0)} C${gx(x1)} ${gy(y1)} ${gx(x2)} ${gy(y2)} ${gx(1)} ${gy(1)}`;
+    if (ce.special) { d = ''; for (let i = 0; i <= 60; i++) { const t = i / 60; d += (i ? 'L' : 'M') + gx(t).toFixed(1) + ' ' + gy(elasticF(t)).toFixed(1); } }
+    $('#ceCrv').setAttribute('d', d);
+    const setL = (id, ax, ay, bx, by) => { const l = $(id); l.setAttribute('x1', ax); l.setAttribute('y1', ay); l.setAttribute('x2', bx); l.setAttribute('y2', by); };
+    setL('#ceA1', gx(0), gy(0), gx(x1), gy(y1));
+    setL('#ceA2', gx(1), gy(1), gx(x2), gy(y2));
+    $('#ceH1').setAttribute('transform', `translate(${gx(x1)} ${gy(y1)})`);
+    $('#ceH2').setAttribute('transform', `translate(${gx(x2)} ${gy(y2)})`);
+    [$('#ceH1'), $('#ceH2'), $('#ceA1'), $('#ceA2')].forEach((el) => { el.style.display = ce.special ? 'none' : ''; });
+    $('#ceCode').textContent = ce.special ? 'elastic (expression) · rebond réglé par l\'intensité' : easeCss({ b: ce.b });
+    $('#ceNote').textContent = ce.special ? 'Elastic ne tient pas dans une bézier : courbe spéciale, non éditable.' : (ce.dirty ? 'Courbe modifiée · tire les poignées, ou flèches au clavier (Maj : ×5)' : `${ce.name} · tire les poignées pour l'ajuster`);
+    $('#ceDemos').style.setProperty('--ce', easeCss({ b: ce.b }));
+  };
+  const markDirty = () => { if (!ce.dirty) { ce.dirty = true; ce.name = 'Perso'; ce.special = false; renderCeLib(); } };
+  const bindCeDrag = () => {
+    const sv = $('#ceSvg');
+    let drag = 0;
+    const toVal = (e) => {
+      const pt = sv.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const q = pt.matrixTransform(sv.getScreenCTM().inverse());
+      const t = Math.max(0, Math.min(1, (q.x - GX0) / (GX1 - GX0)));
+      const v = Math.max(VMIN, Math.min(VMAX, VMIN + ((GY0 - q.y) / (GY0 - GY1)) * (VMAX - VMIN)));
+      return [Math.round(t * 100) / 100, Math.round(v * 100) / 100];
+    };
+    sv.addEventListener('pointerdown', (e) => {
+      const g = e.target.closest('#ceH1, #ceH2');
+      if (!g || ce.special) return;
+      drag = g.id === 'ceH1' ? 1 : 2;
+      sv.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    sv.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const [t, v] = toVal(e);
+      if (drag === 1) { ce.b[0] = t; ce.b[1] = v; } else { ce.b[2] = t; ce.b[3] = v; }
+      markDirty();
+      drawCe();
+    });
+    const end = () => { drag = 0; };
+    sv.addEventListener('pointerup', end);
+    sv.addEventListener('pointercancel', end);
+    sv.addEventListener('keydown', (e) => {
+      const h = e.target.dataset && e.target.dataset.h;
+      if (!h || ce.special) return;
+      const step = e.shiftKey ? 0.05 : 0.01;
+      const i = h === '1' ? 0 : 2;
+      const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+      if (!moves) return;
+      e.preventDefault();
+      ce.b[i] = Math.max(0, Math.min(1, Math.round((ce.b[i] + moves[0]) * 100) / 100));
+      ce.b[i + 1] = Math.max(VMIN, Math.min(VMAX, Math.round((ce.b[i + 1] + moves[1]) * 100) / 100));
+      markDirty();
+      drawCe();
+    });
+  };
+  const ceCurveObj = () => (ce.dirty ? { id: 'perso', name: 'Perso', b: ce.b.slice() } : (CURVE_LIB.concat(state.myCurves).find((c) => c.id === ce.baseId) || { id: 'perso', name: ce.name, b: ce.b.slice() }));
+
+  // ---------------------------------------------------------------- événements
+  $('#cats').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-cat]');
+    if (!b) return;
+    state.cat = b.dataset.cat;
+    state.vibe = 'tous';
+    state.q = '';
+    $('#q').value = '';
+    renderView();
+    $('#scroll').scrollTop = 0;
+  });
+  $('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); renderView(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && state.active && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('#q').focus(); }
+    if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet();
+  });
+
+  const toggleFav = (id) => { if (state.favs.has(id)) state.favs.delete(id); else state.favs.add(id); };
+  $('#panel').addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act], [data-dir], [data-by], [data-sfxcat], [data-vibe], [data-dlen], [data-cid], [data-curve]');
+    if (!el) return;
+    const inSheet = !!el.closest('#sheet');
+    if (el.dataset.dir) {
+      state.dir = el.dataset.dir;
+      renderView();
+      if (inSheet) { $$('#sheet [data-dir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === state.dir))); $$('#sheet .grid').forEach((g) => g.classList.toggle('out', state.dir === 'out')); }
+      return;
+    }
+    if (el.dataset.by) { state.by = el.dataset.by; applyVars(); $$('[data-by]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.by === state.by))); return; }
+    if (el.dataset.sfxcat) { state.sfxCat = el.dataset.sfxcat; renderView(); return; }
+    if (el.dataset.vibe) { state.vibe = el.dataset.vibe; renderView(); return; }
+    if (el.dataset.dlen) { const p = P.find((x) => x.id === sheetCtx.id); setFrames(p, p.f * Number(el.dataset.dlen)); return; }
+    if (el.dataset.curve) {
+      state.curve = libCurve(el.dataset.curve);
+      applyVars();
+      if (state.cat === 'speed' && !state.q) renderView();
+      return;
+    }
+    if (el.dataset.cid) {
+      const c = CURVE_LIB.concat(state.myCurves).find((x) => x.id === el.dataset.cid);
+      Object.assign(ce, { b: c.b.slice(), name: c.name, special: !!c.special, baseId: c.id, dirty: false });
+      renderCeLib();
+      drawCe();
+      return;
+    }
+    const act = el.dataset.act;
+    const tile = el.closest('.tile');
+    const p = tile ? P.find((x) => x.id === tile.dataset.id) : null;
+    const row = el.closest('.sfx');
+    const sp = sheetCtx.id ? P.find((x) => x.id === sheetCtx.id) : null;
+    switch (act) {
+      case 'apply': if (p && !inSheet) apply(p, tile); break;
+      case 'fav':
+        if (!p) break;
+        toggleFav(p.id);
+        el.setAttribute('aria-pressed', String(state.favs.has(p.id)));
+        toast('ok', state.favs.has(p.id) ? `${p.name} épinglé aux favoris` : `${p.name} retiré des favoris`, '~/.yexofx/favoris');
+        if (state.cat === 'fav' && !state.q) renderView(); else renderCats();
+        break;
+      case 'dminus': case 'dplus':
+        if (p) setFrames(p, framesOf(p) + (act === 'dplus' ? 1 : -1) * (e.shiftKey ? 5 : 1));
+        break;
+      case 'more': if (p) openDetail(p); break;
+      case 'close': closeSheet(); break;
+      case 'd-minus': case 'd-plus': if (sp) setFrames(sp, framesOf(sp) + (act === 'd-plus' ? 1 : -1) * (e.shiftKey ? 5 : 1)); break;
+      case 'd-curve': if (sp) openCurve(sp.id); break;
+      case 'd-curve-reset': if (sp) { cust(sp.id).c = undefined; refreshTile(sp); syncDetail(sp); } break;
+      case 'apply-detail': { const pp = P.find((x) => x.id === el.dataset.id); closeSheet(); apply(pp, $(`#view .tile[data-id="${pp.id}"]`)); break; }
+      case 'fav-detail': { const id = el.dataset.id; toggleFav(id); el.textContent = state.favs.has(id) ? '★ Retirer' : '☆ Favori'; renderView(); break; }
+      case 'play': if (row) playSfx(row.dataset.sfx, el, row.querySelector('canvas')); break;
+      case 'cti': if (row) toast('ok', row.dataset.sfx + ' importé au CTI', `rangé dans YFX_SFX · placé à ${cti}`); break;
+      case 'markers': if (row) toast('ok', row.dataset.sfx + ' placé sur 4 markers', 'calque Clip_ace.mp4 · une copie par marker'); break;
+      case 'sw-auto': state.autoplay = !state.autoplay; el.setAttribute('aria-checked', String(state.autoplay)); syncAuto(); break;
+      case 'sw-sfx': state.sfxAuto = !state.sfxAuto; el.setAttribute('aria-checked', String(state.sfxAuto)); break;
+      case 'reset-cust': state.cust = {}; renderView(); openSettings(); toast('ok', 'Durées et courbes remises par défaut', 'tous les presets'); break;
+      case 'relock': closeSheet(); lock(); break;
+      case 'curve-edit': openCurve('global'); break;
+      case 'ce-copy': {
+        const txt = $('#ceCode').textContent;
+        const done = () => toast('ok', 'Copié', txt);
+        try { navigator.clipboard.writeText(txt).then(done, () => toast('ok', 'Copie bloquée ici : sélectionne le texte', txt)); } catch (err) { toast('ok', 'Copie bloquée ici : sélectionne le texte', txt); }
+        break;
+      }
+      case 'ce-save': {
+        const n = state.myCurves.length + 1;
+        const c = { id: 'my' + n, name: 'Perso ' + n, b: ce.b.slice() };
+        state.myCurves.push(c);
+        Object.assign(ce, { name: c.name, baseId: c.id, dirty: false, special: false });
+        renderCeLib(); drawCe();
+        toast('ok', `${c.name} enregistrée`, easeCss(c) + ' · dans « Mes courbes »');
+        break;
+      }
+      case 'ce-use': {
+        const c = ceCurveObj();
+        if (ce.target === 'global') { state.curve = c; applyVars(); renderView(); closeSheet(); toast('ok', `Courbe ${c.name} par défaut`, easeCss(c)); }
+        else if (ce.target === 'keys') { closeSheet(); toast('ok', `Courbe ${c.name} appliquée à 6 keyframes`, `Scale + Position sur Clip_ace.mp4 · ${easeCss(c)} · simulation`); }
+        else { const pp = P.find((x) => x.id === ce.target); cust(pp.id).c = c; refreshTile(pp); openDetail(pp); toast('ok', `Courbe ${c.name} pour ${pp.name}`, easeCss(c)); }
+        break;
+      }
+      case 'ce-back': { const pp = P.find((x) => x.id === el.dataset.id); openDetail(pp); break; }
+      default: break;
+    }
+  });
+  $('#sheet').addEventListener('click', (e) => { if (e.target === $('#sheet')) closeSheet(); });
+
+  const syncAuto = () => {
+    $('#btnAuto').setAttribute('aria-pressed', String(state.autoplay));
+    $('#btnAuto').title = state.autoplay ? 'Previews : lecture auto (clique pour : au survol)' : 'Previews : au survol (clique pour : lecture auto)';
+    $$('#view .grid').forEach((g) => g.classList.toggle('hover-only', !state.autoplay));
+  };
+  $('#btnAuto').addEventListener('click', () => { state.autoplay = !state.autoplay; syncAuto(); toast('ok', state.autoplay ? 'Previews en lecture auto' : 'Previews au survol seulement', 'yfx config --previews'); });
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnCurve').addEventListener('click', () => openCurve('global'));
+  $('#selPill').addEventListener('click', () => { state.sel = (state.sel + 1) % SELS.length; renderSel(); });
+  $('#tuneSum').addEventListener('click', () => {
+    const t = $('#tune'), open = t.dataset.open !== 'true';
+    t.dataset.open = String(open);
+    $('#tuneSum').setAttribute('aria-expanded', String(open));
+  });
+  $('#intensity').addEventListener('input', (e) => { state.intensity = Number(e.target.value); applyVars(); });
+  $('#widthSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-w]');
+    if (!b) return;
+    $('#ae').style.width = b.dataset.w + 'px';
+    $$('#widthSeg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    setTimeout(() => $$('.sfx canvas').forEach((cv) => drawWave(cv, sfxById(cv.closest('.sfx').dataset.sfx))), 380);
+  });
+
+  // ---------------------------------------------------------------- licence (simulée)
+  const KEY_RE = /^YFX(-[A-Z0-9]{4}){3}$/;
+  const fmtKey = (v) => { const raw = v.toUpperCase().replace(/[^A-Z0-9]/g, ''); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11), raw.slice(11, 15)].filter(Boolean).join('-'); };
+  $('#key').addEventListener('input', (e) => { e.target.value = fmtKey(e.target.value); e.target.setAttribute('aria-invalid', 'false'); $('#keyErr').textContent = ''; });
+  $('#gateForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = fmtKey($('#key').value);
+    if (!KEY_RE.test(v)) { $('#key').setAttribute('aria-invalid', 'true'); $('#keyErr').textContent = 'Clé invalide. Format attendu : YFX-XXXX-XXXX-XXXX'; return; }
+    const btn = $('#keyBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin-s"></span>Vérification…';
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Activer'; unlock(); toast('ok', 'Licence activée sur ce PC', 'PC-YEXO-7F3A · revérifiée en ligne toutes les 24 h'); }, 950);
+  });
+  const unlock = () => { state.active = true; $('#gate').classList.add('leave'); setTimeout(() => { $('#gate').hidden = true; }, 460); $('#licFoot').innerHTML = '<span class="dot"></span>licence active · PC-YEXO-7F3A'; };
+  const lock = () => { state.active = false; const g = $('#gate'); g.hidden = false; requestAnimationFrame(() => g.classList.remove('leave')); $('#licFoot').innerHTML = '<span class="dot off"></span>licence : non activée'; };
+
+  // ---------------------------------------------------------------- démarrage
+  $('#nPresets').textContent = P.length;
+  renderQuickCurves();
+  renderSel();
+  applyVars();
+  renderView();
+  syncAuto();
+})();
+</script>
