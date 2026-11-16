@@ -53,9 +53,9 @@
     await new Promise((r) => setTimeout(r, 30));
     const sel = MOCK_SELS[YX.mockState.sel % MOCK_SELS.length];
     switch (cmd) {
-      case 'ping': return { version: '0.5.0', build: 'simulé', ae: 'simulé (hors AE)', engine: 'javascript-1.0', lang: 'fr_FR' };
+      case 'ping': return { version: '0.6.0', build: 'simulé', ae: 'simulé (hors AE)', engine: 'javascript-1.0', lang: 'fr_FR' };
       case 'presets': return READY();
-      case 'context': return { project: true, comp: { name: 'EDIT_VALO_01', fps: 60, w: 1080, h: 1920, time: 4.2, tc: '0:00:04:12' }, sel };
+      case 'context': return { project: true, comp: { name: 'EDIT_VALO_01', fps: 60, w: 1080, h: 1920, time: 4.2, tc: '0:00:04:12', dur: '0:00:12:00', layers: 6, items: 14 }, sel };
       case 'env': return { canWrite: true, assets: null, userDir: '(simulé)', thirdParty: ['Deep Glow'] };
       case 'apply': {
         const p = YX.catalog.P.find((x) => x.id === a.id);

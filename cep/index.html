@@ -9,23 +9,21 @@
 </head>
 <body>
 <div class="panel app" id="panel">
-  <nav class="rail" id="rail" aria-label="Catégories">
-    <span class="rail-logo" id="headLogo"></span>
+  <nav class="rail" id="rail" aria-label="Navigation">
+    <div class="rail-logo"><span id="headLogo"></span><span class="wm">Yexo<b>FX</b></span></div>
+    <button class="rail-btn" id="btnHome" type="button" title="Accueil" aria-label="Accueil" aria-pressed="false"></button>
     <div class="rail-cats" id="cats"></div>
     <div class="rail-foot">
-      <button class="rail-btn" id="btnSettings" type="button" title="Réglages et outils"></button>
-      <span class="rail-status" id="status" title="État"><i></i></span>
+      <button class="rail-btn" id="btnSettings" type="button" title="Réglages" aria-label="Réglages" aria-pressed="false"></button>
+      <button class="rail-btn" id="btnRail" type="button" title="Afficher les libellés" aria-label="Afficher les libellés"></button>
     </div>
   </nav>
 
   <main class="main">
     <header class="top">
-      <label class="search">
-        <span id="searchIco"></span>
-        <input id="q" type="search" placeholder="Rechercher un effet ou un son" autocomplete="off" aria-label="Rechercher un preset ou un son">
-        <kbd>/</kbd>
-      </label>
-      <button class="ctx-line" id="ctx" type="button" title="Comp active et sélection (clique pour rafraîchir)">connexion à After Effects…</button>
+      <div class="crumb" id="crumb"></div>
+      <button class="search-btn" id="btnSearch" type="button" aria-label="Rechercher (Ctrl+K)"><span id="searchIco"></span><span class="txt">Rechercher</span><kbd>Ctrl K</kbd></button>
+      <button class="ibtn" id="btnAuto" type="button" aria-pressed="true" title="Lecture auto des previews"></button>
     </header>
 
     <div class="banner" id="banner" hidden></div>
@@ -42,18 +40,30 @@
         <svg viewBox="0 0 40 26" aria-hidden="true"><path id="dockCurve"/></svg>
         <span id="curveV">Back</span>
       </button>
-      <button class="ibtn sm" id="btnAuto" type="button" aria-pressed="true" title="Lecture auto des previews"></button>
+    </footer>
+
+    <footer class="statusbar">
+      <span class="st-dot wait" id="status" title="État"></span>
+      <button class="ctx-line" id="ctx" type="button" title="Comp active et sélection (clique pour rafraîchir)">connexion à After Effects…</button>
+      <span class="ver" id="ver">v0.6</span>
     </footer>
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="pal" id="pal" hidden>
+    <div class="pal-card" role="dialog" aria-modal="true" aria-label="Rechercher">
+      <label class="pal-in"><span id="palIco"></span><input id="q" type="search" placeholder="Preset, son, page, réglage…" autocomplete="off" spellcheck="false" aria-label="Rechercher" aria-controls="palList"><kbd>Échap</kbd></label>
+      <div class="pal-list" id="palList" role="listbox"></div>
+      <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choisir</span><span><kbd>↵</kbd> ouvrir</span><span><kbd>Maj</kbd><kbd>↵</kbd> voir en cartes</span></div>
+    </div>
+  </div>
   <div class="sheet" id="sheet" hidden></div>
 
   <div class="gate" id="gate" hidden>
     <span id="gateLogo"></span>
     <div>
       <h2>Active Yexo<b>FX</b></h2>
-      <div class="cmd" style="margin-top:6px">yfx license --activate</div>
+      <div class="cmd" style="margin-top:6px">Une clé par PC, vérifiée sans connexion.</div>
     </div>
     <div class="step"><b>1.</b> Envoie ton ID machine à Yexo (Discord Edits).</div>
     <div class="mid"><code id="mid">…</code><button class="mini" type="button" id="midCopy">Copier</button></div>
@@ -63,7 +73,6 @@
       <div class="err" id="keyErr"></div>
       <button class="btn primary" id="keyBtn" type="submit">Activer</button>
     </form>
-    <div class="fine"><span class="cmd">clé liée à ce PC · vérifiée sans connexion</span></div>
   </div>
 </div>
 

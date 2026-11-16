@@ -1,7 +1,8 @@
 # YexoFX : architecture
 
-État au 2026-11-16 : **v0.5.0**. Les 73 presets du catalogue sont codés et validés sur un AE simulé ; le moteur v0.4
-a tourné dans AE 25.1 chez Yexo (Kill Hit + markers OK). L'auto-test v0.5 dans AE reste à faire.
+État au 2026-11-16 : **v0.6.0**. Les 73 presets du catalogue sont codés et validés sur un AE simulé ; le moteur v0.4
+a tourné dans AE 25.1 chez Yexo (Kill Hit + markers OK). v0.6 = refonte visuelle « Rouge impact » inspirée de KIRU Suite
+(voir `docs/REFONTE_V06.md`). L'auto-test dans AE et la génération des previews restent à faire.
 
 ## Historique des décisions
 - Cahier des charges initial : panel ScriptUI (ES3). Livraison 1 « Core » faite en ScriptUI.
@@ -13,6 +14,8 @@ a tourné dans AE 25.1 chez Yexo (Kill Hit + markers OK). L'auto-test v0.5 dans 
 - v0.5 (« plus jolie et plus simple ») : rail d'icônes à gauche, recherche + ligne de contexte en haut, cartes vidéo
   4:5 avec titre en surimpression, dock intensité / courbe en bas, statut réduit à un point.
 - RGB split natif : 2 calques d'effets en mode Éclaircir (Channel Mixer garde le rouge ou le bleu) + Transform décalé.
+- v0.6 : le violet lavande « fait IA » → DA « Rouge impact » (graphite + un seul rouge, sans halo). Coque façon KIRU :
+  rail repliable avec libellés, fil d'Ariane, palette Ctrl+K, barre d'état, Accueil, Réglages en page.
 
 ## Structure
 ```
@@ -41,7 +44,7 @@ L'ordre des modules compte (tri alphabétique) : `42_impacts` utilise `Y.shake.p
 ## API moteur (`YFX.api.call`)
 `ping`, `presets` (ids codés : le panel n'active que ceux-là, les autres sont « bientôt »), `context` (comp, CTI,
 sélection), `env` (assets, écriture, effets tiers), `setAssets`, `apply {id, params}`, `sfx {path, mode cti|markers}`,
-`autotest`, `dump`, `effects`, `openLog`, `pvInfo`, `pvBegin`, `pvRender {id, kind hit|text|cut, word, params, keep}`,
+`autotest`, `dump`, `effects`, `openLog`, `pvInfo`, (`context` renvoie aussi `dur`, `layers`, `items` pour l'Accueil), `pvBegin`, `pvRender {id, kind hit|text|cut, word, params, keep}`,
 `pvEnd`. Réponse `{ok, data}` ou `{ok:false, error, user}`. Aucune boîte de dialogue côté moteur.
 
 ## Vidéos de preview

@@ -1,7 +1,7 @@
 # YexoFX
 
 Extension CEP pour After Effects 2025, pensée pour les edits FPS (Valorant / CS2).
-Version 0.5.0 : les 73 presets du catalogue sont codés, interface simplifiée (rail d'icônes, cartes vidéo, dock).
+Version 0.6.0 : les 73 presets du catalogue, nouvelle DA « Rouge impact », accueil, recherche Ctrl+K.
 
 ## Installer (mode dev)
 
@@ -21,13 +21,21 @@ Réglages (⚙) > **Recharger le panel**, ou ferme et rouvre le panel. Le moteur
 
 ## Utilisation
 
-- **À gauche, le rail** : les catégories (Impacts, Texte, Shake, Twitch, Vitesse, Transitions, FX, Styles, Audio,
-  Favoris). Le point en bas du rail : vert = licence + moteur OK (survole-le pour le détail).
-- **En haut** : la recherche (sans accents) et la ligne de contexte (comp, fps, CTI, calques sélectionnés ; clic = rafraîchir).
+- **Accueil** : la comp active (taille, fps, durée, sélection), des actions rapides, des presets suggérés selon le
+  calque sélectionné (clip, texte, son…), tes récents et tes favoris.
+- **À gauche, le rail** : Accueil, les effets (Impacts, Texte, Shake, Twitch, Vitesse, Transitions, FX, Styles), la
+  bibliothèque (Audio, Favoris), puis Réglages. Le bouton du bas affiche ou masque les libellés.
+- **En haut** : où tu es (« Effets › Impacts ») et **Rechercher (Ctrl+K ou /)** : presets, sons, pages et actions.
+  ↑ ↓ pour choisir, Entrée pour appliquer, Maj+Entrée pour voir les résultats en cartes.
+- **Tout en bas, la barre d'état** : point vert = licence + moteur OK (survole-le), puis comp, fps, CTI et sélection
+  (clic = rafraîchir).
 - **Clic sur une carte** : applique le preset. Un seul Ctrl+Z l'annule.
 - **− / +** au survol d'une carte : durée (Maj+clic : 5 images). **⋯** : fiche (recette, durée, courbe, entrée / sortie).
-- **En bas, le dock** : intensité (0 à 200 %) et courbe par défaut (clic = éditeur de courbe, aussi applicable aux keys
-  sélectionnées dans la timeline). Le bouton lecture coupe la lecture auto des previews.
+- **Le dock** (au-dessus de la barre d'état) : intensité (0 à 200 %) et courbe par défaut (clic = éditeur de courbe,
+  aussi applicable aux keys sélectionnées dans la timeline). Le bouton lecture, en haut à droite, coupe la lecture auto
+  des previews.
+- **Réglages** : lecture auto, SFX auto, apparence (animations normales / réduites / coupées, densité, libellés du
+  rail), previews vidéo, dossier assets, licence, outils de calque et diagnostic.
 - **★** : favoris (compteur sur le rail).
 - Impacts, flashs et shakes se déclenchent sur des **markers** : recliquer au CTI ajoute un impact au même calque.
 - Tout ce que crée YexoFX commence par `YFX_` ; les réglages restent modifiables dans Effect Controls.

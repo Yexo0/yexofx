@@ -34,6 +34,12 @@
     alert: '<path d="M12 7v6M12 16.5v.5"/>',
     back: '<path d="m14 6-6 6 6 6"/>',
     clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+    home: '<path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/>',
+    rail: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/>',
+    chev: '<path d="m9 6 6 6-6 6"/>',
+    refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+    layers: '<path d="m12 4 8.5 4.5L12 13 3.5 8.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5"/>',
+    folder: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
   };
   const FILLED = { play: 1, stop: 1, more: 1 };
   const ico = (n, cls) => `<svg class="ico${FILLED[n] ? ' fill' : ''}${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
@@ -51,9 +57,15 @@
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const saved = YX.store.load() || {};
   const cleanCurve = (c) => (c && Array.isArray(c.b) && c.b.length === 4 ? { id: String(c.id || 'perso'), name: String(c.name || 'Perso'), b: c.b.map(Number), special: !!c.special } : null);
+  const MOTIONS = ['normal', 'reduced', 'off'], DENSITIES = ['compact', 'comfort'];
   const state = {
     licensed: false, licName: '', engine: 'loading', engineErr: '', info: null, ready: new Set(), env: null, ctx: null,
-    cat: CATS.some((c) => c.id === saved.cat) ? saved.cat : 'impacts',
+    // vue courante : 'home', 'settings' ou une catégorie du catalogue (Réglages n'est pas restauré au démarrage)
+    cat: CATS.some((c) => c.id === saved.cat) ? saved.cat : 'home',
+    recent: Array.isArray(saved.recent) ? saved.recent.filter((id) => P.some((p) => p.id === id)).slice(0, 8) : [],
+    motion: MOTIONS.includes(saved.motion) ? saved.motion : (reduced ? 'reduced' : 'normal'),
+    density: DENSITIES.includes(saved.density) ? saved.density : 'compact',
+    railWide: saved.railWide === true,
     dir: saved.dir || 'in', by: saved.by || 'car', vibe: 'tous',
     intensity: typeof saved.intensity === 'number' ? saved.intensity : 100,
     curve: cleanCurve(saved.curve) || libCurve('back'),
@@ -67,6 +79,7 @@
   const persist = () => YX.store.save({
     cat: state.cat, dir: state.dir, by: state.by, intensity: state.intensity, curve: state.curve,
     cust: state.cust, myCurves: state.myCurves, favs: Array.from(state.favs), autoplay: state.autoplay, sfxAuto: state.sfxAuto,
+    recent: state.recent, motion: state.motion, density: state.density, railWide: state.railWide,
   });
   const cust = (id) => state.cust[id] || (state.cust[id] = {});
   const framesOf = (p) => (p.f === 'loop' ? 'loop' : (state.cust[p.id] && state.cust[p.id].f) || p.f);
@@ -93,19 +106,23 @@
   let pvRun = null; // génération de previews en cours (AE occupé : pas de rafraîchissement du contexte)
   const renderCtx = () => {
     const c = state.ctx, el = $('#ctx');
-    if (state.engine !== 'ok') { el.innerHTML = `<span class="dot off"></span>${state.engine === 'loading' ? 'connexion à After Effects…' : 'moteur non chargé'}`; return; }
-    if (!c || !c.comp) { el.innerHTML = `<span class="dot off"></span>${c && !c.project ? 'aucun projet ouvert' : 'aucune comp active : clique dans ta timeline'}`; return; }
+    if (state.engine !== 'ok') { el.textContent = state.engine === 'loading' ? 'connexion à After Effects…' : 'moteur non chargé'; return; }
+    if (!c || !c.comp) { el.textContent = c && !c.project ? 'aucun projet ouvert' : 'aucune comp active : clique dans ta timeline'; return; }
     const n = c.sel.length;
     const names = c.sel.slice(0, 2).map((l) => esc(l.name)).join(', ') + (n > 2 ? ` +${n - 2}` : '');
-    el.innerHTML = `<span class="dot"></span><b>${esc(c.comp.name)}</b><span class="sep">·</span>${fr(c.comp.fps, c.comp.fps % 1 ? 2 : 0)} fps<span class="sep">·</span>${esc(c.comp.tc)}<span class="sep">·</span>${n ? n + ' calque' + (n > 1 ? 's' : '') + ' : ' + names : 'aucun calque'}`;
+    el.innerHTML = `<b>${esc(c.comp.name)}</b><span class="sep">·</span>${fr(c.comp.fps, c.comp.fps % 1 ? 2 : 0)} fps<span class="sep">·</span>${esc(c.comp.tc)}<span class="sep">·</span>${n ? n + ' calque' + (n > 1 ? 's' : '') + ' : ' + names : 'aucun calque'}`;
     el.title = n ? c.sel.map((l) => `${l.name} (${l.kind})`).join('\n') : 'Comp active (clique pour rafraîchir)';
   };
+  let lastCtxKey = '';
   const refreshContext = async () => {
     if (ctxBusy || state.engine !== 'ok' || pvRun) return;
     ctxBusy = true;
     try { state.ctx = await YX.bridge.call('context'); } catch (e) { if (e.engine) { state.engine = 'error'; state.engineErr = e.message; renderStatus(); } }
     ctxBusy = false;
     renderCtx();
+    // l'accueil suit la comp et la sélection (mis à jour seulement si quelque chose a changé)
+    const key = JSON.stringify(state.ctx && state.ctx.comp ? [state.ctx.comp.name, state.ctx.comp.w, state.ctx.comp.h, state.ctx.comp.fps, state.ctx.comp.dur, state.ctx.comp.layers, state.ctx.comp.items, state.ctx.sel] : state.ctx);
+    if (key !== lastCtxKey) { lastCtxKey = key; if (onHome()) updateHome(); }
   };
   setInterval(() => { if (!document.hidden && state.licensed) refreshContext(); }, 1500);
 
@@ -128,6 +145,9 @@
     try {
       const r = await YX.bridge.call('apply', { id: p.id, params: paramsFor(p) });
       if (tile) { tile.classList.remove('applying'); tile.classList.add('done'); setTimeout(() => tile.classList.remove('done'), 900); }
+      state.recent = [p.id].concat(state.recent.filter((x) => x !== p.id)).slice(0, 8);
+      persist();
+      if (onHome()) updateHome();
       let extra = 'Ctrl+Z annule';
       const s = p.sfx && state.sfxAuto && ['impacts', 'shake', 'trans'].includes(p.cat) ? findSfx(p.sfx) : null;
       if (s) {
@@ -145,11 +165,91 @@
 
   // ---------------------------------------------------------------- rendu
   const favCount = () => P.filter((p) => state.favs.has(p.id)).length;
+  const LIB_CATS = { audio: 1, fav: 1 };
+  const railInner = (icon, label, extra) => `${ico(icon)}<span class="lbl">${esc(label)}</span>${extra || ''}`;
   const renderCats = () => {
-    $('#cats').innerHTML = CATS.map((c) => {
+    let html = '', group = null;
+    CATS.forEach((c) => {
+      const g = LIB_CATS[c.id] ? 'Bibliothèque' : 'Effets';
+      if (g !== group) { html += `<div class="rail-sep" role="presentation"><span>${g}</span></div>`; group = g; }
       const cnt = c.id === 'fav' && favCount() ? `<span class="cnt">${favCount()}</span>` : '';
-      return `<button class="rail-btn" type="button" data-cat="${c.id}" aria-pressed="${!state.q && state.cat === c.id}" title="${esc(c.label)}" aria-label="${esc(c.label)}">${ico(c.id)}${cnt}</button>`;
-    }).join('');
+      html += `<button class="rail-btn" type="button" data-cat="${c.id}" aria-pressed="${!state.q && state.cat === c.id}" title="${esc(c.label)}" aria-label="${esc(c.label)}">${railInner(c.id, c.label, cnt)}</button>`;
+    });
+    $('#cats').innerHTML = html;
+    $('#btnHome').setAttribute('aria-pressed', String(!state.q && state.cat === 'home'));
+    $('#btnSettings').setAttribute('aria-pressed', String(!state.q && state.cat === 'settings'));
+  };
+  const onHome = () => !state.q && state.cat === 'home' && !!$('#view .home');
+  const crumbHTML = () => {
+    const chev = ico('chev', 'chev');
+    if (state.q) return `<span class="up">Recherche</span>${chev}<span class="cur">« ${esc(state.q)} »</span><button class="ibtn xs" type="button" data-act="q-clear" aria-label="Effacer la recherche" title="Effacer la recherche">${ico('x')}</button>`;
+    if (state.cat === 'home') return '<span class="cur">Accueil</span>';
+    if (state.cat === 'settings') return '<span class="cur">Réglages</span>';
+    const c = CATS.find((x) => x.id === state.cat);
+    return `<span class="up">${LIB_CATS[c.id] ? 'Bibliothèque' : 'Effets'}</span>${chev}<span class="cur">${esc(c.label)}</span>`;
+  };
+  // Change de vue (rail, palette, liens de l'accueil).
+  const go = (route) => {
+    state.cat = route;
+    state.vibe = 'tous';
+    state.q = '';
+    persist();
+    renderView();
+    $('#scroll').scrollTop = 0;
+  };
+
+  // ---------------------------------------------------------------- accueil
+  const QUICK = ['killhit', 'impact', 'tw-full', 'velocity', 'beat', 'ease'];
+  const SUGGEST = {
+    footage: { t: 'Clip sélectionné', ids: ['velocity', 'freezehit', 'slowkill', 'shaketwitch'] },
+    'précomp': { t: 'Précomp sélectionnée', ids: ['velocity', 'killhit', 'rgbpunch', 'freezehit'] },
+    texte: { t: 'Texte sélectionné', ids: ['pop', 'stomp', 'glitch', 'val'] },
+    audio: { t: 'Son sélectionné', ids: ['beat', 'marker'] },
+    ajustement: { t: "Calque d'ajustement", ids: ['glow', 'grain', 'vhs', 'punchy'] },
+    forme: { t: 'Forme sélectionnée', ids: ['impact', 'tw-scale', 'pop', 'flash'] },
+  };
+  const presetIcon = (p) => (p.id === 'ease' ? 'curve' : p.cat);
+  const qaHTML = (p, sug) => `<button class="qa${sug ? ' sug' : ''}" type="button" data-act="qa" data-id="${p.id}" title="${esc(p.desc)}"><span class="qi">${ico(presetIcon(p))}</span><span class="qt"><b>${esc(p.name)}</b><span>${esc(p.sb)}</span></span></button>`;
+  const byIds = (ids) => ids.map((id) => P.find((p) => p.id === id)).filter(Boolean);
+  const compCardHTML = () => {
+    const c = state.ctx;
+    const head = (r) => `<div class="sec-label label acc">Comp active${r || ''}</div>`;
+    if (state.engine !== 'ok') return `<div class="comp-card">${head()}<h3 class="none">${state.engine === 'loading' ? 'Connexion à After Effects…' : 'Moteur non chargé'}</h3><div class="meta">${state.engine === 'loading' ? 'Le moteur YexoFX se charge.' : 'Réglages › Recharger le moteur'}</div></div>`;
+    const refresh = `<button class="ibtn" type="button" data-act="ctx-refresh" aria-label="Rafraîchir" title="Rafraîchir">${ico('refresh')}</button>`;
+    if (!c || !c.comp) return `<div class="comp-card">${head(refresh)}<h3 class="none">${c && !c.project ? 'Aucun projet ouvert' : 'Aucune comp active'}</h3><div class="hint" style="margin-top:3px">Clique dans ta timeline : YexoFX suit la comp et la sélection.</div></div>`;
+    const k = c.comp, n = c.sel.length;
+    const kinds = Array.from(new Set(c.sel.map((l) => l.kind)));
+    const sep = '<span class="sep">·</span>';
+    return `<div class="comp-card">${head(refresh)}
+      <h3 title="${esc(k.name)}">${esc(k.name)}</h3>
+      <div class="meta">${k.w} × ${k.h}${sep}${fr(k.fps, k.fps % 1 ? 2 : 0)} fps${k.dur ? sep + esc(k.dur) : ''}</div>
+      <div class="badges">${n ? `<span class="badge on">${n} calque${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}</span>` + kinds.map((x) => `<span class="badge">${esc(x)}</span>`).join('') : '<span class="badge">aucune sélection</span>'}</div>
+      ${typeof k.layers === 'number' ? `<div class="stats"><div><b>${k.layers}</b><span>calques</span></div><div><b>${n}</b><span>sélection</span></div><div><b>${typeof k.items === 'number' ? k.items : '–'}</b><span>éléments du projet</span></div></div>` : ''}
+    </div>`;
+  };
+  const suggestHTML = () => {
+    const sel = (state.ctx && state.ctx.sel) || [];
+    const s = sel.length ? SUGGEST[sel[0].kind] : null;
+    const label = (r) => `<div class="sec-label label">Pour ta sélection${r ? `<span class="r">${esc(r)}</span>` : ''}</div>`;
+    if (!s) return label() + `<div class="empty-row"><span class="qi">${ico('layers')}</span><span>${sel.length ? 'Aucune suggestion pour ce type de calque.' : 'Sélectionne un calque : YexoFX te propose les bons presets.'}</span></div>`;
+    return label(s.t) + `<div class="qa-grid">${byIds(s.ids).map((p) => qaHTML(p, true)).join('')}</div>`;
+  };
+  const listOrEmpty = (list, emptyTitle, emptyText, icon) => (list.length ? `<div class="qa-grid">${list.map((p) => qaHTML(p)).join('')}</div>` : `<div class="empty-row"><span class="qi">${ico(icon)}</span><span><b>${esc(emptyTitle)}</b>${esc(emptyText)}</span></div>`);
+  const homeHTML = () => {
+    const favs = P.filter((p) => state.favs.has(p.id));
+    return `<div class="home">
+      <div id="homeCard">${compCardHTML()}</div>
+      <div><div class="sec-label label">Actions rapides</div><div class="qa-grid">${byIds(QUICK).map((p) => qaHTML(p)).join('')}</div></div>
+      <div id="homeSug">${suggestHTML()}</div>
+      <div id="homeRecent"><div class="sec-label label">Récents</div>${listOrEmpty(byIds(state.recent.slice(0, 6)), 'Rien pour l\'instant.', ' Les presets que tu appliques arrivent ici.', 'clock')}</div>
+      <div><div class="sec-label label">Favoris${favs.length > 6 ? `<span class="r"><button class="lnk" type="button" data-act="go" data-route="fav">tout voir (${favs.length})</button></span>` : ''}</div>${listOrEmpty(favs.slice(0, 6), 'Aucun favori.', ' Clique ★ sur une carte pour l\'épingler ici.', 'fav')}</div>
+    </div>`;
+  };
+  const updateHome = () => {
+    if (!onHome()) return;
+    $('#homeCard').innerHTML = compCardHTML();
+    $('#homeSug').innerHTML = suggestHTML();
+    $('#homeRecent').innerHTML = `<div class="sec-label label">Récents</div>${listOrEmpty(byIds(state.recent.slice(0, 6)), 'Rien pour l\'instant.', ' Les presets que tu appliques arrivent ici.', 'clock')}`;
   };
   const durHTML = (p) => {
     const f = framesOf(p);
@@ -178,14 +278,20 @@
       <div class="top"><span class="nm">${esc(s.id)}</span><span class="sb">${label ? esc(label) : esc(s.cat) + ' · ' + sizeLabel(s.size)}</span></div>
       <div class="bot"><canvas aria-hidden="true"></canvas>${label ? '' : '<button class="mini" type="button" data-act="cti">Au CTI</button><button class="mini" type="button" data-act="markers">Markers</button>'}</div>
     </div>`;
-  const catHead = (title, cmd, right) => `<div class="cat-head"><h2>${esc(title)}</h2><span class="cmd">${esc(cmd)}</span><span class="label">${esc(right)}</span></div>`;
+  // Le titre visible est dans le fil d'Ariane : le h2 reste pour les lecteurs d'écran.
+  const catHead = (title, cmd, right) => `<div class="cat-head"><h2 class="sr">${esc(title)}</h2><span class="cmd">${esc(cmd)}</span><span class="count">${esc(right)}</span></div>`;
   const chips = (key, opts) => `<div class="chips" role="group">${opts.map(([v, l]) => `<button type="button" data-${key}="${esc(v)}" aria-pressed="${state[key] === v}">${esc(l)}</button>`).join('')}</div>`;
 
+  let lastRoute = null;
   const renderView = () => {
     const view = $('#view');
     stopSfx();
     let html = '';
-    if (state.q) {
+    if (!state.q && state.cat === 'home') {
+      html = homeHTML();
+    } else if (!state.q && state.cat === 'settings') {
+      html = settingsHTML();
+    } else if (state.q) {
       const toks = norm(state.q).split(/\s+/).filter(Boolean);
       const hit = (s) => { const n = norm(s); return toks.every((t) => n.includes(t)); };
       const ps = P.filter((p) => hit([p.name, p.sb, p.desc, p.rx.join(' '), VIBES[p.vibe], CATS.find((c) => c.id === p.cat).label].join(' ')));
@@ -228,6 +334,11 @@
     $$('.sfx canvas', view).forEach((cv) => drawWave(cv, findSfx(cv.closest('.sfx').dataset.sfx)));
     syncVideos();
     renderCats();
+    $('#crumb').innerHTML = crumbHTML();
+    $('#dock').hidden = !state.q && state.cat === 'settings';
+    // petite entrée de vue, seulement quand on change de page (pas à chaque rafraîchissement)
+    const route = state.q ? 'q' : state.cat;
+    if (route !== lastRoute) { lastRoute = route; view.classList.remove('vin'); void view.offsetWidth; view.classList.add('vin'); }
   };
 
   const applyVars = () => {
@@ -244,7 +355,7 @@
   };
   const renderStatus = () => {
     const st = $('#status');
-    st.className = 'rail-status ' + (state.engine === 'ok' && state.licensed ? 'ok' : state.engine === 'error' ? 'err' : 'wait');
+    st.className = 'st-dot ' + (state.engine === 'ok' && state.licensed ? 'ok' : state.engine === 'error' ? 'err' : 'wait');
     st.title = (state.licensed ? 'Licence active' + (state.licName ? ' · ' + state.licName : '') : 'Licence non activée') + '\n' +
       (state.engine === 'ok' ? `Moteur v${state.info.version} · AE ${String(state.info.ae).split('x')[0]} · ${state.ready.size} presets` : state.engine === 'loading' ? 'Moteur : chargement…' : 'Moteur non chargé');
     const b = $('#banner');
@@ -403,32 +514,58 @@
     $('#dReset', sh).hidden = !curveOf(p);
   };
 
-  const openSettings = () => {
+  // ---------------------------------------------------------------- page Réglages
+  const setSec = (label, body) => `<div><div class="sec-label label">${esc(label)}</div>${body}</div>`;
+  const setRow = (t1, t2, right) => `<div class="set-row"><div style="min-width:0"><div class="t1">${t1}</div>${t2 ? `<div class="t2">${t2}</div>` : ''}</div>${right}</div>`;
+  const sw = (act, on, label) => `<button class="sw" type="button" role="switch" data-act="${act}" aria-checked="${on}" aria-label="${esc(label)}"></button>`;
+  const settingsHTML = () => {
     const env = state.env || {};
     const nCust = Object.keys(state.cust).filter((k) => state.cust[k] && (state.cust[k].f || state.cust[k].c)).length;
-    openSheet(`
-      ${head('yfx config', 'Réglages et outils')}
-      <div>
-        <div class="set-row"><div><div class="t1">Lecture auto des previews</div><div class="t2">sinon : au survol seulement</div></div><button class="sw" type="button" role="switch" data-act="sw-auto" aria-checked="${state.autoplay}" aria-label="Lecture auto"></button></div>
-        <div class="set-row"><div><div class="t1">SFX auto avec impacts et transitions</div><div class="t2">place le son suggéré s'il est dans ta bibliothèque</div></div><button class="sw" type="button" role="switch" data-act="sw-sfx" aria-checked="${state.sfxAuto}" aria-label="SFX auto"></button></div>
-        <div class="set-row"><div><div class="t1">Durées et courbes perso</div><div class="t2">${nCust} preset(s) modifié(s)</div></div><button class="mini" type="button" data-act="reset-cust">Tout remettre par défaut</button></div>
-        <div class="set-row"><div style="min-width:0"><div class="t1">Dossier assets</div><div class="path">${esc(env.assets || 'introuvable')}</div></div><div class="row-btns"><button class="mini" type="button" data-act="assets-pick">Changer</button><button class="mini" type="button" data-act="assets-open">Ouvrir</button></div></div>
-        <div class="set-row"><div><div class="t1">Licence</div><div class="t2">${esc(state.licName || '—')} · PC ${esc(YX.licence.machineId() || '?')}</div></div><button class="mini" type="button" data-act="relock">Désactiver ce PC</button></div>
-      </div>
+    return `<div class="settings">
+      ${setSec('Général', `<div class="set-card">
+        ${setRow('Lecture auto des previews', 'sinon : au survol seulement', sw('sw-auto', state.autoplay, 'Lecture auto'))}
+        ${setRow('SFX auto avec impacts et transitions', 'place le son suggéré s\'il est dans ta bibliothèque', sw('sw-sfx', state.sfxAuto, 'SFX auto'))}
+        ${setRow('Durées et courbes perso', `${nCust} preset(s) modifié(s)`, '<button class="mini" type="button" data-act="reset-cust">Tout remettre par défaut</button>')}
+      </div>`)}
+      ${setSec('Apparence', `<div class="set-card">
+        ${setRow('Animations de l\'interface', 'réduites : plus courtes · coupées : aucune', chips('motion', [['normal', 'Normales'], ['reduced', 'Réduites'], ['off', 'Coupées']]))}
+        ${setRow('Densité', 'confortable : texte un peu plus grand', chips('density', [['compact', 'Compacte'], ['comfort', 'Confortable']]))}
+        ${setRow('Libellés du rail', 'noms des catégories à côté des icônes', sw('sw-rail', state.railWide, 'Libellés du rail'))}
+      </div>`)}
       ${pvSection()}
-      <div><div class="label" style="margin-bottom:8px">Calques</div><div class="tools-grid">
+      ${setSec('Bibliothèque', `<div class="set-card">
+        ${setRow('Dossier assets', `<span class="path">${esc(env.assets || 'introuvable')}</span>`, '<div class="row-btns"><button class="mini" type="button" data-act="assets-pick">Changer</button><button class="mini" type="button" data-act="assets-open">Ouvrir</button></div>')}
+      </div>`)}
+      ${setSec('Licence', `<div class="set-card">
+        ${setRow(esc(state.licName || '—'), `PC ${esc(YX.licence.machineId() || '?')}`, '<button class="mini" type="button" data-act="relock">Désactiver ce PC</button>')}
+      </div>`)}
+      ${setSec('Calques', `<div class="set-card"><div class="tools-grid">
         <button class="btn ghost sm" type="button" data-act="tool" data-id="tools_select_yfx">Sélectionner les YFX</button>
         <button class="btn ghost sm" type="button" data-act="tool" data-id="tools_clean">Nettoyer YFX du calque</button>
-      </div></div>
-      <div><div class="label" style="margin-bottom:8px">Diagnostic</div><div class="tools-grid">
+      </div></div>`)}
+      ${setSec('Diagnostic', `<div class="set-card"><div class="tools-grid">
         <button class="btn ghost sm" type="button" data-act="autotest-ask">Auto-test</button>
         <button class="btn ghost sm" type="button" data-act="dump">Dump calque</button>
         <button class="btn ghost sm" type="button" data-act="effects">Liste des effets</button>
         <button class="btn ghost sm" type="button" data-act="log">Ouvrir le log</button>
         <button class="btn ghost sm" type="button" data-act="reload-engine">Recharger le moteur</button>
         <button class="btn ghost sm" type="button" data-act="reload-panel">Recharger le panel</button>
-      </div></div>
-      <div class="hint">Panel v0.5 · moteur ${esc(state.info ? state.info.version + ' (build ' + state.info.build + ')' : 'non chargé')} · ${state.ready.size} presets · AE ${esc(state.info ? state.info.ae : '?')} · expressions ${esc(state.info ? state.info.engine : '?')}${env.thirdParty && env.thirdParty.length ? ' · tiers : ' + esc(env.thirdParty.join(', ')) : ''}</div>`, { kind: 'settings' });
+      </div></div>`)}
+      <div class="hint">Panel v0.6 · moteur ${esc(state.info ? state.info.version + ' (build ' + state.info.build + ')' : 'non chargé')} · ${state.ready.size} presets · AE ${esc(state.info ? state.info.ae : '?')} · expressions ${esc(state.info ? state.info.engine : '?')}${env.thirdParty && env.thirdParty.length ? ' · tiers : ' + esc(env.thirdParty.join(', ')) : ''}</div>
+    </div>`;
+  };
+  const openSettings = () => go('settings');
+  const refreshSettings = () => { if (!state.q && state.cat === 'settings') { const top = $('#scroll').scrollTop; renderView(); $('#scroll').scrollTop = top; } };
+  const applyUi = () => {
+    const root = document.documentElement;
+    root.setAttribute('data-motion', state.motion);
+    root.setAttribute('data-density', state.density);
+    $('#panel').classList.toggle('wide', state.railWide);
+    const b = $('#btnRail');
+    const lbl = state.railWide ? 'Masquer les libellés' : 'Afficher les libellés';
+    b.innerHTML = railInner('rail', state.railWide ? 'Réduire' : 'Libellés');
+    b.title = lbl;
+    b.setAttribute('aria-label', lbl);
   };
   // ---------------------------------------------------------------- vidéos de preview (rendues dans AE)
   const canPv = (p) => YX.pvgen.available && state.engine === 'ok' && isReady(p) && !p.tool && p.cat !== 'audio';
@@ -438,13 +575,13 @@
   const pvSection = () => {
     if (!YX.pvgen.available || state.engine !== 'ok') return '';
     const list = pvList(), miss = pvMissing().length, ff = YX.pvgen.ffmpeg(), mine = ff ? YX.pvgen.userVideos() : [];
-    return `<div><div class="label" style="margin-bottom:8px">Previews vidéo</div>
-      <div class="set-row"><div style="min-width:0"><div class="t1">${list.length - miss} / ${list.length} presets ont leur vidéo</div><div class="t2">${ff ? 'compression ffmpeg · WebM 432×540' : 'ffmpeg introuvable : rendus gardés en MP4, plus lourds'}</div></div><button class="mini" type="button" data-act="pv-open">Ouvrir</button></div>
+    return setSec('Previews vidéo', `<div class="set-card">
+      ${setRow(`${list.length - miss} / ${list.length} presets ont leur vidéo`, ff ? 'compression ffmpeg · WebM 432×540' : 'ffmpeg introuvable : rendus gardés en MP4, plus lourds', '<button class="mini" type="button" data-act="pv-open">Ouvrir</button>')}
       <div class="tools-grid">
-        <button class="btn ghost sm" type="button" data-act="pv-ask" data-scope="missing"${miss ? '' : ' disabled'}>${miss ? `Générer ${miss} manquante${miss > 1 ? 's' : ''}` : 'Aucune manquante'}</button>
+        <button class="btn ${miss ? 'primary' : 'ghost'} sm" type="button" data-act="pv-ask" data-scope="missing"${miss ? '' : ' disabled'}>${miss ? `Générer ${miss} manquante${miss > 1 ? 's' : ''}` : 'Aucune manquante'}</button>
         <button class="btn ghost sm" type="button" data-act="pv-ask" data-scope="all">Tout regénérer</button>
         ${mine.length ? `<button class="btn ghost sm" type="button" data-act="pv-convert">Convertir tes vidéos (${mine.length})</button>` : ''}
-      </div></div>`;
+      </div></div>`);
   };
   const openPvConfirm = async (list, title) => {
     if (!list.length) { toast('ok', 'Toutes les previews sont déjà là', ''); return; }
@@ -659,8 +796,7 @@
       state.env = Object.assign({}, state.env, { assets: res.assets });
       YX.store.setAssets(res.assets);
       state.sfx = YX.store.listSfx();
-      openSettings();
-      renderView();
+      refreshSettings();
       toast('ok', 'Dossier assets mis à jour', res.assets || dir);
     }).catch((e) => toast('err', 'Dossier non enregistré', e.message));
   };
@@ -668,26 +804,119 @@
   // ---------------------------------------------------------------- événements
   $('#cats').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-cat]');
-    if (!b) return;
-    state.cat = b.dataset.cat;
-    state.vibe = 'tous';
-    state.q = '';
+    if (b) go(b.dataset.cat);
+  });
+  $('#btnHome').addEventListener('click', () => go('home'));
+  $('#btnRail').addEventListener('click', () => { state.railWide = !state.railWide; persist(); applyUi(); refreshSettings(); });
+
+  // ---------------------------------------------------------------- palette de commandes (Ctrl+K)
+  let palItems = [], palSel = 0;
+  const palGo = [{ icon: 'home', label: 'Accueil', route: 'home' }].concat(CATS.map((c) => ({ icon: c.id, label: c.label, route: c.id })), [{ icon: 'gear', label: 'Réglages', route: 'settings' }]);
+  const palActions = () => [
+    { icon: 'curve', label: 'Courbe par défaut', sub: 'éditeur de courbe', run: () => openCurve('global') },
+    { icon: 'curve', label: 'Courbe de tes keyframes', sub: 'appliquer aux keys sélectionnées', run: () => openCurve('keys') },
+    { icon: 'play', label: state.autoplay ? 'Previews au survol seulement' : 'Previews en lecture auto', sub: 'lecture des cartes', run: () => toggleAuto() },
+    { icon: 'rail', label: state.railWide ? 'Masquer les libellés du rail' : 'Afficher les libellés du rail', sub: 'apparence', run: () => { state.railWide = !state.railWide; persist(); applyUi(); } },
+    { icon: 'refresh', label: 'Recharger le moteur', sub: 'diagnostic', run: () => initEngine(true) },
+  ];
+  const palGroups = (q) => {
+    const toks = norm(q).split(/\s+/).filter(Boolean);
+    const hit = (s) => { const n = norm(s); return toks.every((t) => n.includes(t)); };
+    const catLabel = (p) => CATS.find((c) => c.id === p.cat).label;
+    const presetItem = (p) => ({ icon: presetIcon(p), label: p.name, sub: catLabel(p) + ' · ' + p.sb, hk: 'appliquer', run: () => apply(p, $(`#view .tile[data-id="${p.id}"]`)) });
+    const goItem = (g) => ({ icon: g.icon, label: g.label, sub: 'aller à', hk: 'ouvrir', run: () => go(g.route) });
+    const actItem = (a) => Object.assign({ hk: 'lancer' }, a);
+    if (!toks.length) {
+      return [
+        { t: 'Récents', items: byIds(state.recent.slice(0, 4)).map(presetItem) },
+        { t: 'Aller à', items: palGo.map(goItem) },
+        { t: 'Actions', items: palActions().map(actItem) },
+      ];
+    }
+    // les noms qui commencent par la recherche d'abord, puis les noms qui la contiennent, puis le reste
+    const nq = norm(q.trim());
+    const rank = (p) => { const n = norm(p.name); return n.startsWith(nq) ? 0 : n.includes(nq) ? 1 : toks.every((t) => n.includes(t)) ? 2 : 3; };
+    const ps = P.filter((p) => hit([p.name, p.sb, p.desc, p.rx.join(' '), VIBES[p.vibe], catLabel(p)].join(' ')))
+      .map((p, i) => ({ p, r: rank(p), i })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.p);
+    return [
+      { t: 'Presets', items: ps.slice(0, 30).map(presetItem) },
+      { t: 'Sons', items: state.sfx.filter((s) => hit([s.id, s.cat, 'audio son sfx'].join(' '))).slice(0, 12).map((s) => ({ icon: 'audio', label: s.id, sub: s.cat + ' · posé au CTI', hk: 'poser', run: () => placeSfx(s, 'cti') })) },
+      { t: 'Aller à', items: palGo.filter((g) => hit(g.label)).map(goItem) },
+      { t: 'Actions', items: palActions().filter((a) => hit(a.label + ' ' + a.sub)).map(actItem) },
+    ];
+  };
+  const renderPal = () => {
+    const q = $('#q').value.trim();
+    const groups = palGroups(q).filter((g) => g.items.length);
+    palItems = [];
+    let html = '';
+    groups.forEach((g) => {
+      html += `<div class="pal-grp label">${esc(g.t)}</div>`;
+      g.items.forEach((it) => {
+        const i = palItems.push(it) - 1;
+        html += `<button class="pal-it" type="button" role="option" data-i="${i}" aria-selected="${i === palSel}"><span class="qi">${ico(it.icon)}</span><span class="tx"><b>${esc(it.label)}</b><span>${esc(it.sub || '')}</span></span><span class="hk">${esc(it.hk || '')} ↵</span></button>`;
+      });
+    });
+    $('#palList').innerHTML = html || `<div class="pal-none">Rien pour « ${esc(q)} ».<br>Essaie : twitch, rgb, velocity, whoosh</div>`;
+  };
+  const palMove = (d) => {
+    if (!palItems.length) return;
+    palSel = (palSel + d + palItems.length) % palItems.length;
+    $$('#palList .pal-it').forEach((b) => b.setAttribute('aria-selected', String(Number(b.dataset.i) === palSel)));
+    const cur = $(`#palList .pal-it[data-i="${palSel}"]`);
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
+  };
+  const palOpen = () => !$('#pal').hidden;
+  const openPal = () => {
+    if (!state.licensed || !$('#sheet').hidden) return;
+    $('#pal').hidden = false;
     $('#q').value = '';
-    persist();
-    renderView();
-    $('#scroll').scrollTop = 0;
+    palSel = 0;
+    renderPal();
+    setTimeout(() => $('#q').focus(), 0);
+  };
+  const closePal = () => { $('#pal').hidden = true; };
+  const runPal = (i) => { const it = palItems[i]; if (!it) return; closePal(); it.run(); };
+  const showSearch = (q) => { closePal(); state.q = q; renderView(); $('#scroll').scrollTop = 0; };
+  $('#q').addEventListener('input', () => { palSel = 0; renderPal(); });
+  $('#q').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); palMove(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); palMove(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const q = $('#q').value.trim(); if (e.shiftKey && q) showSearch(q); else runPal(palSel); }
   });
-  $('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); renderView(); });
+  $('#palList').addEventListener('click', (e) => { const b = e.target.closest('.pal-it'); if (b) runPal(Number(b.dataset.i)); });
+  $('#palList').addEventListener('mousemove', (e) => { const b = e.target.closest('.pal-it'); if (b && Number(b.dataset.i) !== palSel) { palSel = Number(b.dataset.i); palMove(0); } });
+  $('#pal').addEventListener('click', (e) => { if (e.target === $('#pal')) closePal(); });
+  $('#btnSearch').addEventListener('click', openPal);
   document.addEventListener('keydown', (e) => {
-    if (e.key === '/' && state.licensed && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('#q').focus(); }
-    if (e.key === 'Escape' && !$('#sheet').hidden && !pvRun) closeSheet();
+    const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.id !== 'q';
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (palOpen()) closePal(); else openPal(); return; }
+    if (e.key === '/' && state.licensed && !typing && !palOpen()) { e.preventDefault(); openPal(); return; }
+    if (e.key === 'Escape') {
+      if (palOpen()) { closePal(); return; }
+      if (!$('#sheet').hidden && !pvRun) closeSheet();
+    }
   });
+  // Dans AE, demande à recevoir Ctrl+K, / et Échap quand le panel a le focus (sinon AE les garde pour lui).
+  try {
+    if (window.__adobe_cep__ && window.__adobe_cep__.registerKeyEventsInterest) {
+      window.__adobe_cep__.registerKeyEventsInterest(JSON.stringify([{ keyCode: 75, ctrlKey: true }, { keyCode: 191 }, { keyCode: 27 }]));
+    }
+  } catch (e) { /* hors AE */ }
 
   const toggleFav = (id) => { if (state.favs.has(id)) state.favs.delete(id); else state.favs.add(id); persist(); };
   $('#panel').addEventListener('click', (e) => {
-    const el = e.target.closest('[data-act], [data-dir], [data-by], [data-sfxcat], [data-vibe], [data-dlen], [data-cid]');
-    if (!el || el.disabled) return;
+    const el = e.target.closest('[data-act], [data-dir], [data-by], [data-sfxcat], [data-vibe], [data-dlen], [data-cid], [data-motion], [data-density]');
+    if (!el || el.disabled || el.closest('#pal')) return;
     const inSheet = !!el.closest('#sheet');
+    if (el.dataset.motion || el.dataset.density) {
+      if (el.dataset.motion) state.motion = el.dataset.motion; else state.density = el.dataset.density;
+      persist();
+      applyUi();
+      const key = el.dataset.motion ? 'motion' : 'density';
+      $$(`[data-${key}]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[key] === state[key])));
+      return;
+    }
     if (el.dataset.dir) {
       state.dir = el.dataset.dir;
       persist();
@@ -713,6 +942,11 @@
     const sp = sheetCtx.id ? P.find((x) => x.id === sheetCtx.id) : null;
     switch (act) {
       case 'apply': if (p && !inSheet) apply(p, tile); break;
+      case 'qa': { const qp = P.find((x) => x.id === el.dataset.id); if (qp) apply(qp, el); break; }
+      case 'go': go(el.dataset.route); break;
+      case 'q-clear': state.q = ''; renderView(); break;
+      case 'ctx-refresh': lastCtxKey = ''; refreshContext(); break;
+      case 'sw-rail': state.railWide = !state.railWide; persist(); applyUi(); el.setAttribute('aria-checked', String(state.railWide)); break;
       case 'fav':
         if (!p) break;
         toggleFav(p.id);
@@ -745,7 +979,7 @@
       case 'rescan': state.sfx = YX.store.listSfx(); renderView(); toast('ok', state.sfx.length + ' son(s) trouvé(s)', YX.store.sfxRoot() || ''); break;
       case 'sw-auto': state.autoplay = !state.autoplay; persist(); el.setAttribute('aria-checked', String(state.autoplay)); syncAuto(); break;
       case 'sw-sfx': state.sfxAuto = !state.sfxAuto; persist(); el.setAttribute('aria-checked', String(state.sfxAuto)); break;
-      case 'reset-cust': state.cust = {}; persist(); renderView(); openSettings(); toast('ok', 'Durées et courbes remises par défaut', 'tous les presets'); break;
+      case 'reset-cust': state.cust = {}; persist(); refreshSettings(); toast('ok', 'Durées et courbes remises par défaut', 'tous les presets'); break;
       case 'relock': closeSheet(); YX.licence.deactivate(); lock(); break;
       case 'assets-pick': pickAssets(); break;
       case 'assets-open': if (state.env && state.env.assets) YX.store.open(state.env.assets); break;
@@ -798,7 +1032,8 @@
     $$('#view .grid').forEach((g) => g.classList.toggle('hover-only', !state.autoplay));
     syncVideos();
   };
-  $('#btnAuto').addEventListener('click', () => { state.autoplay = !state.autoplay; persist(); syncAuto(); toast('ok', state.autoplay ? 'Previews en lecture auto' : 'Previews au survol seulement', ''); });
+  const toggleAuto = () => { state.autoplay = !state.autoplay; persist(); syncAuto(); $$('[data-act="sw-auto"]').forEach((b) => b.setAttribute('aria-checked', String(state.autoplay))); toast('ok', state.autoplay ? 'Previews en lecture auto' : 'Previews au survol seulement', ''); };
+  $('#btnAuto').addEventListener('click', toggleAuto);
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnCurve').addEventListener('click', () => openCurve('global'));
   $('#ctx').addEventListener('click', () => { if (!YX.bridge.inCEP) YX.mockState.sel++; refreshContext(); });
@@ -866,8 +1101,11 @@
   // ---------------------------------------------------------------- démarrage
   ['headLogo', 'gateLogo'].forEach((id) => { $('#' + id).outerHTML = logo(); });
   $('#btnAuto').innerHTML = ico('play');
-  $('#btnSettings').innerHTML = ico('gear');
+  $('#btnHome').innerHTML = railInner('home', 'Accueil');
+  $('#btnSettings').innerHTML = railInner('gear', 'Réglages');
   $('#searchIco').outerHTML = ico('search');
+  $('#palIco').outerHTML = ico('search');
+  applyUi();
   applyVars();
   renderView();
   syncAuto();

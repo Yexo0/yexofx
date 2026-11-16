@@ -20,7 +20,8 @@ Y.api.context = function () {
         project: true,
         comp: {
             name: comp.name, fps: Y.u.round(comp.frameRate, 3), w: comp.width, h: comp.height,
-            time: comp.time, tc: Y.u.tc(comp.time, comp)
+            time: comp.time, tc: Y.u.tc(comp.time, comp), dur: Y.u.tc(comp.duration, comp),
+            layers: comp.numLayers, items: app.project.numItems
         },
         sel: out
     };

@@ -13,8 +13,8 @@
 (function YexoFX(thisObj) {
 
 var Y = {};
-Y.VERSION = "0.5.0";
-Y.BUILD = "2026-11-16 07:46";
+Y.VERSION = "0.6.0";
+Y.BUILD = "2026-11-16 21:29";
 Y.PREFIX = "YFX_";
 
 // Chemin de ce script : fourni par le loader de dev / le bouton Recharger,
@@ -3592,7 +3592,8 @@ Y.api.context = function () {
         project: true,
         comp: {
             name: comp.name, fps: Y.u.round(comp.frameRate, 3), w: comp.width, h: comp.height,
-            time: comp.time, tc: Y.u.tc(comp.time, comp)
+            time: comp.time, tc: Y.u.tc(comp.time, comp), dur: Y.u.tc(comp.duration, comp),
+            layers: comp.numLayers, items: app.project.numItems
         },
         sel: out
     };

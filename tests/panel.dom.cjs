@@ -1,4 +1,4 @@
-// Test du panel v0.5 (cep/index.html) dans jsdom, avec le moteur simulé du bridge et le vrai Node.js
+// Test du panel v0.6 (cep/index.html) dans jsdom, avec le moteur simulé du bridge et le vrai Node.js
 // (fs, crypto) comme dans CEP. Vérifie : licence, rail de catégories, cartes, durée et courbe par preset,
 // paramètres envoyés au moteur, preset absent du moteur, favoris, réglages, audio, persistance, absence d'erreur JS.
 // Usage : node tests/panel.dom.cjs
@@ -88,13 +88,50 @@ const load = async () => {
 
   console.log('\n2. Moteur et presets');
   await sleep(300);
-  ok(/Moteur v0\.5\.0/.test($('#status').title) && $('#status').classList.contains('ok') && $('#banner').hidden, 'moteur chargé : ' + $('#status').title.split('\n')[1]);
+  ok(/Moteur v0\.6\.0/.test($('#status').title) && $('#status').classList.contains('ok') && $('#banner').hidden, 'moteur chargé : ' + $('#status').title.split('\n')[1]);
   ok(/EDIT_VALO_01/.test($('#ctx').textContent) && /TITRE/.test($('#ctx').textContent), 'contexte AE affiché : ' + $('#ctx').textContent.trim());
   const nCats = w.YX.catalog.CATS.length;
-  ok($$('#cats .rail-btn').length === nCats && $('#cats .rail-btn[aria-pressed="true"]'), 'rail : ' + nCats + ' catégories, une active');
+  ok($$('#cats .rail-btn').length === nCats && $('#btnHome').getAttribute('aria-pressed') === 'true' && $$('#rail .rail-btn[aria-pressed="true"]').length === 1, 'rail : ' + nCats + ' catégories + Accueil actif au premier lancement');
+  ok($('#view .home') && /EDIT_VALO_01/.test($('#homeCard').textContent) && /1080 × 1920/.test($('#homeCard').textContent) && /2 calques sélectionnés/.test($('#homeCard').textContent), 'accueil : comp active, taille et sélection');
+  ok(/Texte sélectionné/.test($('#homeSug').textContent) && $('#homeSug .qa.sug[data-id="pop"]'), 'accueil : suggestions selon la sélection (calque texte)');
+  ok($('#crumb').textContent.trim() === 'Accueil' && $('#status').classList.contains('ok'), "fil d'Ariane « Accueil », barre d'état au vert");
   const calls = [];
   const orig = w.YX.mockHost;
   w.YX.mockHost = (cmd, a) => { calls.push({ cmd, a }); return orig(cmd, a); };
+  click($('#view .qa[data-id="killhit"]'));
+  await sleep(150);
+  ok(calls.some((c) => c.cmd === 'apply' && c.a.id === 'killhit') && /Kill Hit/.test($('#homeRecent').textContent), 'action rapide Kill Hit appliquée, ajoutée aux récents');
+
+  console.log('\n2b. Recherche Ctrl+K, apparence');
+  const key = (k, o) => d.dispatchEvent(new w.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true }, o || {})));
+  const qkey = (k, o) => $('#q').dispatchEvent(new w.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true }, o || {})));
+  const typeQ = (v) => { $('#q').value = v; $('#q').dispatchEvent(new w.Event('input', { bubbles: true })); };
+  key('k', { ctrlKey: true });
+  ok(!$('#pal').hidden && /Aller à/.test($('#palList').textContent) && /Récents/.test($('#palList').textContent), 'Ctrl+K : palette ouverte (récents, pages, actions)');
+  typeQ('velo');
+  const firstIt = $('#palList .pal-it[aria-selected="true"]');
+  ok(firstIt && /Velocity/.test(firstIt.textContent), 'recherche « velo » : Velocity en premier');
+  qkey('Enter');
+  await sleep(150);
+  ok($('#pal').hidden && calls.filter((c) => c.cmd === 'apply').pop().a.id === 'velocity', 'Entrée : Velocity appliqué, palette fermée');
+  key('k', { ctrlKey: true });
+  typeQ('rgb');
+  qkey('Enter', { shiftKey: true });
+  ok($('#pal').hidden && /Recherche/.test($('#crumb').textContent) && $$('#view .tile.card').length >= 3, 'Maj+Entrée : résultats en cartes (' + $$('#view .tile.card').length + ')');
+  click($('#crumb [data-act="q-clear"]'));
+  ok(!/Recherche/.test($('#crumb').textContent), 'recherche effacée');
+  key('k', { ctrlKey: true });
+  typeQ('reglages');
+  qkey('Enter');
+  ok($('#view .settings') && $('#btnSettings').getAttribute('aria-pressed') === 'true' && $('#dock').hidden, 'palette → page Réglages (dock masqué)');
+  key('/');
+  ok(!$('#pal').hidden, '« / » ouvre aussi la palette');
+  key('Escape');
+  ok($('#pal').hidden, 'Échap ferme la palette');
+  click($('#view [data-motion="off"]'));
+  click($('#view [data-density="comfort"]'));
+  click($('#view [data-act="sw-rail"]'));
+  ok(d.documentElement.getAttribute('data-motion') === 'off' && d.documentElement.getAttribute('data-density') === 'comfort' && $('#panel').classList.contains('wide'), 'apparence : animations coupées, densité confortable, rail avec libellés');
   click($('#cats button[data-cat="impacts"]'));
   const first = $('#view .tile');
   ok(first.dataset.id === 'killhit' && !first.classList.contains('not-ready'), 'Impacts : les presets dispo sont en tête (Kill Hit)');
@@ -105,7 +142,7 @@ const load = async () => {
   ok($('#view .tile[data-id="killhit"] .durctl span').textContent === '14 f', 'durée Kill Hit : 8 + 1 + 5 = 14 f');
   click($('#view .tile[data-id="killhit"] .hit'));
   await sleep(150);
-  const ap = calls.find((c) => c.cmd === 'apply');
+  const ap = calls.filter((c) => c.cmd === 'apply').pop();
   ok(ap && ap.a.id === 'killhit' && ap.a.params.frames === 14 && ap.a.params.curve.name === 'Back' && ap.a.params.intensity === 1, 'paramètres envoyés au moteur : ' + JSON.stringify(ap && ap.a.params));
   ok($('#toast').classList.contains('show') && /simulation/.test($('#toast').textContent), 'toast de succès');
   click($('#view .tile[data-id="shaketwitch"] .hit'));
@@ -149,12 +186,13 @@ const load = async () => {
   await sleep(150);
   ok(calls.some((c) => c.cmd === 'sfx' && /whoosh_01\.wav$/.test(c.a.path) && c.a.mode === 'cti'), 'son envoyé au moteur (au CTI)');
   click($('#btnSettings'));
-  click($('#sheet [data-act="sw-auto"]'));
-  click($('#sheet [data-act="tool"][data-id="tools_clean"]'));
-  click($('#sheet [data-act="autotest-ask"]'));
+  click($('#view [data-act="sw-auto"]'));
+  click($('#view [data-act="tool"][data-id="tools_clean"]'));
+  click($('#view [data-act="autotest-ask"]'));
   click($('#sheet [data-act="autotest-run"]'));
   await sleep(300);
   ok(calls.some((c) => c.cmd === 'autotest'), 'auto-test lancé via le moteur');
+  click($('#cats button[data-cat="impacts"]'));
   click($('#btnCurve'));
   click($('#sheet [data-cid="snap"]'));
   click($('#sheet [data-act="ce-save"]'));
@@ -173,8 +211,8 @@ const load = async () => {
   PV.convert = async (src, dst) => { fs.copyFileSync(src, dst); fs.unlinkSync(src); return dst; };
   const nPv = PV.eligible(w.YX.catalog.P, new Set(w.YX.catalog.P.map((p) => p.id))).length;
   click($('#btnSettings'));
-  ok(new RegExp('0 / ' + nPv).test($('#sheet').textContent) && $('#sheet [data-act="pv-ask"][data-scope="missing"]'), `réglages : 0 / ${nPv} previews, bouton « Générer les manquantes »`);
-  click($('#sheet [data-act="pv-ask"][data-scope="missing"]'));
+  ok(new RegExp('0 / ' + nPv).test($('#view').textContent) && $('#view [data-act="pv-ask"][data-scope="missing"]'), `réglages : 0 / ${nPv} previews, bouton « Générer les manquantes »`);
+  click($('#view [data-act="pv-ask"][data-scope="missing"]'));
   await sleep(150);
   ok($('#sheet [data-act="pv-run"]') && /Clip_ace\.mp4/.test($('#sheet').textContent) && /WebM/.test($('#sheet').textContent), 'confirmation : source (clip sélectionné) et compression affichées');
   const nCalls = calls.length;
@@ -215,10 +253,11 @@ const load = async () => {
   await sleep(400);
   const prefs = JSON.parse(fs.readFileSync(path.join(APPDATA, 'YexoFX', 'panel.json'), 'utf8'));
   ok(prefs.cust.killhit.f === 14 && prefs.cust.killhit.c && prefs.myCurves.length === 1 && prefs.autoplay === false && prefs.curve.name === 'Perso 1', 'préférences sauvegardées dans panel.json');
+  ok(prefs.motion === 'off' && prefs.density === 'comfort' && prefs.railWide === true && prefs.recent.includes('velocity'), 'apparence et récents sauvegardés');
 
   console.log('\n5. Désactivation, rechargement');
   click($('#btnSettings'));
-  click($('#sheet [data-act="relock"]'));
+  click($('#view [data-act="relock"]'));
   ok(!$('#gate').hidden && !fs.existsSync(path.join(APPDATA, 'YexoFX', 'licence.key')), 'désactivation : clé supprimée, écran de licence');
   const errs1 = errors.slice();
   w.close();
@@ -226,6 +265,7 @@ const load = async () => {
   const $2 = (s) => d.querySelector(s);
   ok(!$2('#gate').hidden, 'au redémarrage sans clé : écran de licence');
   ok(/Perso 1/.test($2('#curveV').textContent) && $2('#btnAuto').getAttribute('aria-pressed') === 'false', 'préférences relues au redémarrage');
+  ok(d.documentElement.getAttribute('data-motion') === 'off' && $2('#panel').classList.contains('wide'), 'apparence relue au redémarrage');
   const allErrors = errs1.concat(errors);
   ok(allErrors.length === 0, 'aucune erreur JS' + (allErrors.length ? ' :\n      ' + Array.from(new Set(allErrors)).slice(0, 8).join('\n      ') : ''));
   w.close();

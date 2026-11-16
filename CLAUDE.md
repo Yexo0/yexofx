@@ -22,11 +22,18 @@ l'application en 1 clic, puis le nombre de presets (« 20 presets qui claquent >
 - Je ne peux pas lancer After Effects : après chaque livraison, donner des étapes de test précises dans AE et demander
   le rapport d'auto-test (`%APPDATA%\YexoFX\autotest_*.txt`) ou le texte d'erreur exact.
 
-## Direction artistique (site yexofps.org)
-Fond #0e0e0f, surface #1c1b1d (cartes r20, bord 1px rgba(120,118,122,.22)), surface-2 #262527, surface-3 #353436,
-texte #ebe7e9 / muted #c9c5ca / dim #a29fa4, accent #c7bfff sur #2a009f, accent-mid #8e7fff, accent-low #5a48ce.
-Polices Geist Sans + Geist Mono ; labels mono en capitales (10.5px, .14em) ; boutons pilule et chips ; coins de viseur
-sur les médias. Logo : Y dans un carré arrondi accent + deux échos de mouvement (`design/logo-yexofx.svg`).
+## Direction artistique « Rouge impact » (v0.6)
+L'ancien violet lavande est abandonné : Yexo le trouvait « trop IA ». Les tokens sont dans `cep/css/yexofx.css` (:root),
+et l'analyse de la référence (KIRU Suite) est dans `docs/REFONTE_V06.md`.
+- Graphite neutre : fond #0b0b0d, rail #08080a, surfaces #131316 / #1a1a1e / #242428, bordures blanches .07 / .13.
+  Texte #f2f0ed / #b8b5af / #8a8781.
+- **Une seule** couleur vive, utilisée avec parcimonie : rouge #ff4b3e (remplissage des boutons #e2382c, texte blanc).
+  Elle sert à la barre active du rail, aux titres de section importants, au bouton principal et aux pastilles actives.
+- Aucun halo ni dégradé lumineux dans l'interface (ils restent réservés aux previews d'effets).
+- Rayons 4 à 12 px, Geist + Geist Mono, texte 10 à 13 px, labels en capitales (600, .08em).
+- Animations courtes (90 à 240 ms), `cubic-bezier(0.16, 1, 0.3, 1)`, interruptibles. Réglage Normales / Réduites / Coupées.
+- Logo : Y dans un carré arrondi rouge + deux échos de mouvement.
+- On reprend le niveau de finition de KIRU, **pas** son identité (nom, logo 切る, or).
 
 ## Sécurité
 - `keys/yexofx_private.pem` (clé privée des licences) n'est **jamais** commitée ni copiée dans `cep/`. Elle se transfère

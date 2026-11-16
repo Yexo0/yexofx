@@ -372,7 +372,7 @@ const deselect = () => comp.list.forEach((l) => { l.selected = false; });
 
 console.log("\n1. API de base");
 let r = api("ping");
-ok(r.ok && r.data.version === "0.5.0", "ping : moteur v" + (r.data && r.data.version));
+ok(r.ok && r.data.version === "0.6.0", "ping : moteur v" + (r.data && r.data.version));
 r = api("presets");
 const ids = r.data || [];
 ok(r.ok && ids.length >= 73 && !ids.includes("dev_throw"), `presets disponibles : ${ids.length}`);
