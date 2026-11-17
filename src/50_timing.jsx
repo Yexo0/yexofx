@@ -69,7 +69,7 @@ Y.speed.expr = function (L) {
         "var mm = thisLayer.marker;\n" +
         "for (var i = 1; i <= mm.numKeys; i++) {\n" +
         "  var k = mm.key(i), t0 = k.time, cm = k.comment;\n" +
-        s +
+        s + (Y.pm && Y.pm.speedTerms ? Y.pm.speedTerms(L) : "") +
         "}\n" +
         "Math.max(0, Math.min(thisLayer.source.duration - fd, src));";
 };

@@ -12,7 +12,7 @@
 (function YexoFX(thisObj) {
 
 var Y = {};
-Y.VERSION = "0.6.0";
+Y.VERSION = "1.0.0";
 Y.BUILD = "__YFX_BUILD__";
 Y.PREFIX = "YFX_";
 

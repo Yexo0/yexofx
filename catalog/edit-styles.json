@@ -1,0 +1,187 @@
+{
+  "styles": [
+    {
+      "id": "phonk", "name": "Phonk / Velocity", "short": "Phonk",
+      "palette": ["#050505", "#f5f5f5", "#c1121f", "#5a189a"],
+      "curve": "aggro", "intensity": 1.3, "bpm": [120, 160],
+      "cats": ["speed", "impacts", "shake", "twitch"],
+      "sfx": ["bassdrop", "impact", "reverse", "cowbell"],
+      "desc": "Rampes de vitesse calées sur la basse, gros contraste presque noir et blanc, shakes sur chaque kick et flash blanc sur le drop. Ça accélère vers le kill, ça s'écrase dessus."
+    },
+    {
+      "id": "flow", "name": "Flow / Smooth", "short": "Flow",
+      "palette": ["#0d1b2a", "#415a77", "#a9d6e5", "#e0e1dd"],
+      "curve": "smooth", "intensity": 0.7, "bpm": [80, 110],
+      "cats": ["trans", "speed", "cam3d"],
+      "sfx": ["whoosh", "swoosh"],
+      "desc": "Tout coule : transitions fluides, easings longs, motion blur partout et aucune coupe sèche. Le mouvement d'un plan se prolonge dans le suivant."
+    },
+    {
+      "id": "hype", "name": "Hype / Hard", "short": "Hype",
+      "palette": ["#000000", "#ffffff", "#ff2d2d", "#ffd400"],
+      "curve": "snap", "intensity": 1.5, "bpm": [140, 180],
+      "cats": ["impacts", "twitch", "text", "trans"],
+      "sfx": ["impact", "glitch", "riser", "clap"],
+      "desc": "Rythme ultra-rapide : flash cuts, strobe, gros texte plein écran et impacts lourds sur chaque frag. Lisible à la seconde, pas à l'image."
+    },
+    {
+      "id": "cinematic", "name": "Cinematic / Film", "short": "Cinéma",
+      "palette": ["#0f4c5c", "#e36414", "#fbf8f0", "#0b0b0b"],
+      "curve": "smooth", "intensity": 0.6, "bpm": [60, 100],
+      "cats": ["styles", "hud", "cam3d"],
+      "sfx": ["boom", "riser", "whoosh"],
+      "desc": "Letterbox 2.39, grain, halation sur les hautes lumières, étalonnage teal & orange ou Kodak et mouvements de caméra lents. On raconte une action, on ne la martèle pas."
+    },
+    {
+      "id": "raw", "name": "Raw / Clean", "short": "Raw",
+      "palette": ["#111111", "#eeeeee", "#f2a93b", "#6b7280"],
+      "curve": "expo", "intensity": 0.6, "bpm": [100, 140],
+      "cats": ["speed", "trans", "styles"],
+      "sfx": ["click", "impact"],
+      "desc": "L'esprit des fragmovies CS à l'ancienne : peu d'effets, coupes nettes au beat, color correction légère. Le gameplay est la star."
+    },
+    {
+      "id": "quality", "name": "Quality / CC", "short": "Quality",
+      "palette": ["#0b132b", "#1c2541", "#5bc0be", "#f4f4f6"],
+      "curve": "quint", "intensity": 0.8, "bpm": [90, 130],
+      "cats": ["styles", "fx", "speed", "shake"],
+      "sfx": ["whoosh", "sub"],
+      "desc": "Étalonnage poussé, deep glow, netteté, interpolation d'images et shakes subtils. L'image doit avoir l'air plus chère que le jeu."
+    },
+    {
+      "id": "glitch", "name": "Glitch / Digital", "short": "Glitch",
+      "palette": ["#000000", "#00f0ff", "#ff00a0", "#39ff14"],
+      "curve": "linear", "intensity": 1.2, "bpm": [120, 170],
+      "cats": ["fx", "twitch", "trans"],
+      "sfx": ["glitch", "bitcrush", "static"],
+      "desc": "RGB split, blocs décalés, datamosh et pixel sort simulés, bruit numérique. L'image a l'air de casser au bon moment."
+    },
+    {
+      "id": "vhs", "name": "VHS / Retro 90s", "short": "VHS",
+      "palette": ["#1f2a44", "#d7263d", "#3a7ca5", "#fefae0"],
+      "curve": "smooth", "intensity": 0.9, "bpm": [80, 120],
+      "cats": ["fx", "hud", "styles"],
+      "sfx": ["tapestop", "rewind", "static", "click"],
+      "desc": "Scanlines, bavure de chroma, bande de tracking, timestamp REC et format 4:3. Une cassette retrouvée au grenier."
+    },
+    {
+      "id": "y2k", "name": "Y2K / Chrome", "short": "Y2K",
+      "palette": ["#c0c0c0", "#a2d2ff", "#3a86ff", "#ffafcc"],
+      "curve": "back", "intensity": 1.0, "bpm": [120, 140],
+      "cats": ["text", "fx", "styles"],
+      "sfx": ["shimmer", "swoosh", "blip"],
+      "desc": "Texte chrome, bleus glacés et argent, étoiles qui brillent, fisheye. Le futur vu depuis l'an 2000."
+    },
+    {
+      "id": "anime", "name": "Anime / Manga", "short": "Anime",
+      "palette": ["#000000", "#ffffff", "#e63946", "#9ca3af"],
+      "curve": "snap", "intensity": 1.4, "bpm": [130, 170],
+      "cats": ["impacts", "fx", "text", "speed"],
+      "sfx": ["impact", "shing", "whoosh"],
+      "desc": "Impact frames en noir et blanc, lignes de vitesse, trames, onomatopées et arrêts sur image. Chaque kill est une case de manga."
+    },
+    {
+      "id": "comic", "name": "Comic / Pop Art", "short": "Comic",
+      "palette": ["#e63946", "#ffd60a", "#0077b6", "#000000"],
+      "curve": "back", "intensity": 1.1, "bpm": [100, 130],
+      "cats": ["styles", "text", "hud"],
+      "sfx": ["pop", "punch"],
+      "desc": "Contours noirs, points Ben-Day, couleurs primaires et cases de BD. Warhol rencontre le killfeed."
+    },
+    {
+      "id": "cyberpunk", "name": "Cyberpunk / Neon", "short": "Cyber",
+      "palette": ["#01012b", "#ff2a6d", "#05d9e8", "#7700a6"],
+      "curve": "expo", "intensity": 1.1, "bpm": [100, 140],
+      "cats": ["fx", "hud", "styles"],
+      "sfx": ["zap", "glitch", "bass"],
+      "desc": "Magenta et cyan, glow néon, HUD et scanlines fines. La nuit, la pluie et les enseignes."
+    },
+    {
+      "id": "noir", "name": "Noir / Accent rouge", "short": "Noir",
+      "palette": ["#000000", "#ffffff", "#6b6b6b", "#d00000"],
+      "curve": "smooth", "intensity": 0.9, "bpm": [70, 110],
+      "cats": ["styles", "impacts", "text"],
+      "sfx": ["impact", "reverse"],
+      "desc": "Noir et blanc dur, ombres profondes et une seule couleur gardée : le rouge. Tout le reste s'efface."
+    },
+    {
+      "id": "dreamy", "name": "Dreamy / Soft", "short": "Dreamy",
+      "palette": ["#ffc8dd", "#bde0fe", "#cdb4db", "#fff1e6"],
+      "curve": "quint", "intensity": 0.5, "bpm": [60, 100],
+      "cats": ["styles", "trans", "fx"],
+      "sfx": ["shimmer", "whoosh", "riser"],
+      "desc": "Glow doux, pastels, flou de diffusion et transitions lentes : les soft edits. Rien ne cogne."
+    },
+    {
+      "id": "aura", "name": "Aura / Sigma", "short": "Aura",
+      "palette": ["#0b0b0b", "#8d99ae", "#edf2f4", "#4cc9f0"],
+      "curve": "smooth", "intensity": 0.7, "bpm": [60, 90],
+      "cats": ["speed", "cam3d", "fx", "styles"],
+      "sfx": ["boom", "reverse", "heartbeat"],
+      "desc": "Image désaturée, aura lumineuse autour du sujet, slowmo, zoom lent et regard fixe. Le calme avant le one-tap."
+    },
+    {
+      "id": "funk", "name": "Funk BR / Montagem", "short": "Funk",
+      "palette": ["#ff006e", "#ffbe0b", "#3a86ff", "#00f5d4"],
+      "curve": "snap", "intensity": 1.5, "bpm": [125, 135],
+      "cats": ["twitch", "shake", "impacts", "speed"],
+      "sfx": ["bass", "clap", "cowbell"],
+      "desc": "Strobe très rapide, zooms saccadés, couleurs saturées et coupes à la double croche (7 images à 130 BPM et 60 i/s)."
+    },
+    {
+      "id": "minimal", "name": "Minimal / Swiss", "short": "Minimal",
+      "palette": ["#ffffff", "#000000", "#ff3b30", "#e5e5e5"],
+      "curve": "expo", "intensity": 0.6, "bpm": [90, 120],
+      "cats": ["text", "hud", "trans"],
+      "sfx": ["click", "tick"],
+      "desc": "Typographie propre sur une grille, aplats, mouvements précis et courts. Moins, mais juste."
+    },
+    {
+      "id": "depth", "name": "3D / Parallax", "short": "3D",
+      "palette": ["#03045e", "#0077b6", "#90e0ef", "#ffffff"],
+      "curve": "quint", "intensity": 0.8, "bpm": [80, 120],
+      "cats": ["cam3d", "trans", "text"],
+      "sfx": ["whoosh", "swell"],
+      "desc": "Caméra 3D, profondeur, couches sur l'axe Z et orbites. Le plan a du volume."
+    },
+    {
+      "id": "esport", "name": "Esport Broadcast", "short": "Esport",
+      "palette": ["#0b1a2e", "#ff4655", "#00c2b2", "#ffcc00"],
+      "curve": "expo", "intensity": 0.8, "bpm": [110, 140],
+      "cats": ["hud", "text", "trans"],
+      "sfx": ["blip", "stinger", "impact"],
+      "desc": "Le look d'une diffusion de tournoi : killfeed, scoreboard, barres de joueur, lower thirds et stingers."
+    },
+    {
+      "id": "lofi", "name": "Lo-fi / Vibe", "short": "Lo-fi",
+      "palette": ["#e9c46a", "#f4a261", "#2a9d8f", "#264653"],
+      "curve": "smooth", "intensity": 0.5, "bpm": [70, 90],
+      "cats": ["styles", "hud", "text"],
+      "sfx": ["vinyl", "tape", "click"],
+      "desc": "Couleurs chaudes et délavées, grain, rythme posé et texte manuscrit. Un dimanche après-midi."
+    },
+    {
+      "id": "horror", "name": "Horror / Creepy", "short": "Horror",
+      "palette": ["#0a0000", "#8b0000", "#556b2f", "#7f7f7f"],
+      "curve": "antic", "intensity": 1.0, "bpm": [60, 100],
+      "cats": ["fx", "impacts", "styles", "twitch"],
+      "sfx": ["drone", "heartbeat", "metal"],
+      "desc": "Flashs rouges, distorsions, glitch lent et vignette lourde. Quelque chose cloche dans l'image."
+    },
+    {
+      "id": "kinetic", "name": "Kinetic Type", "short": "Kinetic",
+      "palette": ["#000000", "#ffffff", "#ff4b3e", "#f2f0ed"],
+      "curve": "expo", "intensity": 1.0, "bpm": [90, 150],
+      "cats": ["text", "trans", "cam3d"],
+      "sfx": ["tick", "whoosh", "pop"],
+      "desc": "Des edits entièrement portés par le texte animé, calé mot à mot sur les paroles."
+    }
+  ],
+  "vibes": {
+    "clean": ["raw", "quality"],
+    "aggro": ["hype", "phonk"],
+    "smooth": ["flow"],
+    "glitch": ["glitch"],
+    "retro": ["vhs", "lofi"]
+  }
+}

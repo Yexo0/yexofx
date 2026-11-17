@@ -1,6 +1,8 @@
-// Test du panel v0.6 (cep/index.html) dans jsdom, avec le moteur simulé du bridge et le vrai Node.js
+// Test du panel v1.0 (cep/index.html) dans jsdom, avec le moteur simulé du bridge et le vrai Node.js
 // (fs, crypto) comme dans CEP. Vérifie : licence, rail de catégories, cartes, durée et courbe par preset,
-// paramètres envoyés au moteur, preset absent du moteur, favoris, réglages, audio, persistance, absence d'erreur JS.
+// paramètres envoyés au moteur, favoris, réglages, audio, previews par lots avec reprise, styles, filtres, tri,
+// compatibilité avec la sélection, pile et presets perso, packs, collections, comparer A/B, historique,
+// auto-test complet, persistance, absence d'erreur JS.
 // Usage : node tests/panel.dom.cjs
 const fs = require('fs');
 const os = require('os');
@@ -88,7 +90,7 @@ const load = async () => {
 
   console.log('\n2. Moteur et presets');
   await sleep(300);
-  ok(/Moteur v0\.6\.0/.test($('#status').title) && $('#status').classList.contains('ok') && $('#banner').hidden, 'moteur chargé : ' + $('#status').title.split('\n')[1]);
+  ok(/Moteur v1\.0\.0/.test($('#status').title) && $('#status').classList.contains('ok') && $('#banner').hidden, 'moteur chargé : ' + $('#status').title.split('\n')[1]);
   ok(/EDIT_VALO_01/.test($('#ctx').textContent) && /TITRE/.test($('#ctx').textContent), 'contexte AE affiché : ' + $('#ctx').textContent.trim());
   const nCats = w.YX.catalog.CATS.length;
   ok($$('#cats .rail-btn').length === nCats && $('#btnHome').getAttribute('aria-pressed') === 'true' && $$('#rail .rail-btn[aria-pressed="true"]').length === 1, 'rail : ' + nCats + ' catégories + Accueil actif au premier lancement');
@@ -212,39 +214,62 @@ const load = async () => {
   const nPv = PV.eligible(w.YX.catalog.P, new Set(w.YX.catalog.P.map((p) => p.id))).length;
   click($('#btnSettings'));
   ok(new RegExp('0 / ' + nPv).test($('#view').textContent) && $('#view [data-act="pv-ask"][data-scope="missing"]'), `réglages : 0 / ${nPv} previews, bouton « Générer les manquantes »`);
+  w.YX.mockState.delay = 0;
+  const countWebm = () => fs.readdirSync(path.join(ASSETS, 'previews')).filter((f) => f.endsWith('.webm')).length;
+  const waitPv = async () => { for (let i = 0; i < 1200 && !/prêtes|arrêtée|impossible/.test(($('#pvTitle') || {}).textContent || ''); i++) await sleep(25); };
   click($('#view [data-act="pv-ask"][data-scope="missing"]'));
   await sleep(150);
-  ok($('#sheet [data-act="pv-run"]') && /Clip_ace\.mp4/.test($('#sheet').textContent) && /WebM/.test($('#sheet').textContent), 'confirmation : source (clip sélectionné) et compression affichées');
+  ok($('#sheet [data-act="pv-run"]') && /Clip_ace\.mp4/.test($('#sheet').textContent) && /WebM 256×320/.test($('#sheet').textContent) && $('#sheet [data-pvlot="25"]'), 'confirmation : source (clip sélectionné), WebM 256×320, choix du lot');
+  click($('#sheet [data-pvlot="25"]'));
   const nCalls = calls.length;
   click($('#sheet [data-act="pv-run"]'));
-  await sleep(60);
+  await sleep(20);
   d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   ok(!$('#sheet').hidden && $('#pvBar'), 'pendant la génération : Échap ne ferme pas la fenêtre');
-  for (let i = 0; i < 150 && !/prêtes|arrêtée|impossible/.test(($('#pvTitle') || {}).textContent || ''); i++) await sleep(100);
+  await waitPv();
+  const made1 = countWebm();
+  const lot1 = calls.slice(nCalls).filter((c) => c.cmd === 'pvRender').map((c) => c.a.id);
+  ok(lot1.length === 25 && made1 >= 24 && made1 <= 25, `lot de 25 : ${lot1.length} rendus, ${made1} .webm écrits`);
+  click($('#sheet [data-act="close"]'));
+  click($('#btnSettings'));
+  ok(new RegExp(made1 + ' / ' + nPv).test($('#view').textContent), `réglages : ${made1} / ${nPv} previews après le premier lot`);
+  click($('#view [data-act="pv-ask"][data-scope="missing"]'));
+  await sleep(150);
+  click($('#sheet [data-pvlot="all"]'));
+  const nCalls2 = calls.length;
+  click($('#sheet [data-act="pv-run"]'));
+  await waitPv();
+  const lot2 = calls.slice(nCalls2).filter((c) => c.cmd === 'pvRender').map((c) => c.a.id);
+  const made = countWebm();
+  ok(/prêtes/.test($('#pvTitle').textContent) && made === nPv - 1, `reprise : ${made} .webm au total (${$('#pvNow').textContent})`);
+  ok(lot2.length === nPv - made1 && !lot2.some((id) => id !== 'glow' && lot1.includes(id)), `reprise : seules les ${lot2.length} manquantes sont rendues`);
   const pvCalls = calls.slice(nCalls);
-  const made = fs.readdirSync(path.join(ASSETS, 'previews')).filter((f) => f.endsWith('.webm'));
-  ok(/prêtes/.test($('#pvTitle').textContent) && made.length === nPv - 1, `génération : ${made.length} .webm écrits dans YexoFX_assets/previews (${$('#pvNow').textContent})`);
-  ok(pvCalls[0].cmd === 'pvBegin' && pvCalls.filter((c) => c.cmd === 'pvRender').length === nPv && pvCalls.filter((c) => c.cmd === 'pvEnd').length === 1, 'moteur : pvBegin, un pvRender par preset, pvEnd');
-  const zr = pvCalls.find((c) => c.cmd === 'pvRender' && c.a.id === 'zoom'), pr = pvCalls.find((c) => c.cmd === 'pvRender' && c.a.id === 'pop');
-  ok(zr.a.kind === 'cut' && pr.a.kind === 'text' && pr.a.word === 'ACE' && pvCalls.find((c) => c.a && c.a.id === 'killhit').a.kind === 'hit', 'mise en scène : transitions sur une coupe, textes avec leur mot, impacts au kill');
+  ok(pvCalls[0].cmd === 'pvBegin' && pvCalls.filter((c) => c.cmd === 'pvBegin').length === 2 && pvCalls.filter((c) => c.cmd === 'pvEnd').length === 2, 'moteur : pvBegin / pvEnd une fois par lot');
+  const pvOf = (id) => pvCalls.find((c) => c.cmd === 'pvRender' && c.a.id === id);
+  ok(pvOf('zoom').a.kind === 'cut' && pvOf('pop').a.kind === 'text' && pvOf('pop').a.word === 'ACE' && pvOf('killhit').a.kind === 'hit', 'mise en scène : transitions sur une coupe, textes avec leur mot, impacts au kill');
+  const rxPv = pvCalls.find((c) => c.cmd === 'pvRender' && c.a.def && c.a.def.impl === 'recipe');
+  ok(rxPv && Array.isArray(rxPv.a.def.recipe) && rxPv.a.def.recipe.length && pvOf('killhit').a.def.impl === 'native', `recette envoyée au moteur pour les presets v1 (${rxPv && rxPv.a.id}), id seul pour les natifs`);
   ok(/Glow/.test($('#pvErrs').textContent) && /introuvable/.test($('#pvErrs').textContent), 'erreur d\'un preset listée sans arrêter les autres');
   ok(fs.readdirSync(RAW).length === 0, 'rendus bruts supprimés après compression');
   click($('#sheet [data-act="close"]'));
   click($('#cats button[data-cat="impacts"]'));
   const vid = $('#view .tile[data-id="killhit"] video.pvv');
-  ok(vid && /killhit\.webm\?v=\d+$/.test(vid.getAttribute('src')), 'carte Kill Hit : vidéo WebM affichée');
+  ok(vid && /killhit\.webm\?v=\d+$/.test(vid.getAttribute('src')) && vid.getAttribute('preload') === (w.YX.app.state.autoplay ? 'auto' : 'none'), 'carte Kill Hit : vidéo WebM (préchargée seulement en lecture auto)');
   click($('#view .tile[data-id="killhit"] [data-act="more"]'));
   ok(/Regénérer la vidéo/.test($('#sheet [data-act="pv-one"]').textContent), 'fiche : « Regénérer la vidéo de preview »');
   click($('#sheet [data-act="pv-one"]'));
   await sleep(150);
   ok(/Preview de Kill Hit/.test($('#sheet h3').textContent), 'fiche → confirmation pour ce seul preset');
   click($('#sheet [data-act="close"]'));
+  w.YX.mockState.delay = undefined;
   if (realFf) {
     const src = path.join(RAW, 'sample.mp4'), dst = path.join(RAW, 'sample.webm');
-    require('child_process').execFileSync(realFf, ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=540x676:rate=60:duration=1', '-pix_fmt', 'yuv420p', src]);
+    require('child_process').execFileSync(realFf, ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=540x676:rate=60:duration=2', '-pix_fmt', 'yuv420p', src]);
     await realConvert(src, dst, true);
     const probe = require('child_process').spawnSync(realFf, ['-hide_banner', '-i', dst], { encoding: 'utf8' }).stderr;
-    ok(fs.existsSync(dst) && fs.existsSync(src) && /vp9/.test(probe) && /432x540/.test(probe), `vrai ffmpeg : WebM VP9 432×540 (${Math.round(fs.statSync(dst).size / 1024)} Ko), original gardé`);
+    const kb = Math.round(fs.statSync(dst).size / 1024), still = dst.replace(/\.webm$/, '.webp');
+    ok(fs.existsSync(dst) && fs.existsSync(src) && /vp9/.test(probe) && /256x320/.test(probe) && kb < 150, `vrai ffmpeg : WebM VP9 256×320 (${kb} Ko < 150), original gardé`);
+    ok(fs.existsSync(still) && fs.statSync(still).size > 0, `vrai ffmpeg : image WebP à côté (${fs.existsSync(still) ? Math.round(fs.statSync(still).size / 1024) + ' Ko' : 'absente'})`);
   } else {
     console.log('  --   vrai ffmpeg absent : conversion réelle non testée');
   }
@@ -252,8 +277,136 @@ const load = async () => {
 
   await sleep(400);
   const prefs = JSON.parse(fs.readFileSync(path.join(APPDATA, 'YexoFX', 'panel.json'), 'utf8'));
-  ok(prefs.cust.killhit.f === 14 && prefs.cust.killhit.c && prefs.myCurves.length === 1 && prefs.autoplay === false && prefs.curve.name === 'Perso 1', 'préférences sauvegardées dans panel.json');
+  ok(prefs.cust.killhit.f === 14 && prefs.cust.killhit.c && prefs.myCurves.length === 1 && prefs.autoplay === true && prefs.curve.name === 'Perso 1', 'préférences sauvegardées dans panel.json');
   ok(prefs.motion === 'off' && prefs.density === 'comfort' && prefs.railWide === true && prefs.recent.includes('velocity'), 'apparence et récents sauvegardés');
+
+  console.log('\n4c. Styles, filtres, compatibilité, pile, packs, collections, A/B, historique, auto-test');
+  w.YX.mockState.delay = 0;
+  const byId = (id) => w.YX.catalog.byId.get(id);
+  const tilesP = () => $$('#view .tile.card').map((t) => byId(t.dataset.id));
+  click($('#cats button[data-cat="impacts"]'));
+  click($('#view .style-chips [data-style="phonk"]'));
+  let tp = tilesP();
+  ok(tp.length >= 5 && tp.every((p) => p.styles.includes('phonk')) && $$('#view .style-chips button')[1].dataset.style === 'phonk', `style Phonk : ${tp.length} impacts, tous Phonk, puce du style en tête de la barre`);
+  click($('#cats button[data-cat="shake"]'));
+  tp = tilesP();
+  ok(tp.length >= 3 && tp.every((p) => p.styles.includes('phonk') && p.cat === 'shake'), `le style suit dans Shake (${tp.length})`);
+  click($('#view .style-chips [data-style=""]'));
+  ok($('#view .style-chips [data-style=""]').getAttribute('aria-pressed') === 'true' && tilesP().length === w.YX.catalog.P.filter((p) => p.cat === 'shake').length, 'style retiré (« Tous les styles »)');
+  click($('#view [data-act="filters"]'));
+  click($('#sheet [data-ftog="perf:leger"]'));
+  click($('#sheet [data-sort="az"]'));
+  click($('#sheet [data-act="close"]'));
+  tp = tilesP();
+  const names = tp.map((p) => p.name);
+  ok(tp.length > 3 && tp.every((p) => p.perf === 'leger') && /1 filtre/.test($('#view .filt').textContent), `filtre perf légère : ${tp.length} shakes, bouton « 1 filtre »`);
+  ok(names.join('|') === names.slice().sort((x, y) => x.localeCompare(y, 'fr')).join('|'), 'tri A-Z');
+  click($('#view [data-act="filters"]'));
+  click($('#sheet [data-sort="pop"]'));
+  click($('#sheet [data-act="filters-clear"]'));
+  ok($('#sheet').hidden && !/filtre/.test($('#view .filt').textContent), 'filtres retirés');
+  // sélection simulée actuelle : un clip seul -> les presets texte sont grisés avec la raison
+  click($('#cats button[data-cat="text"]'));
+  const inc = $$('#view .tile.card.incompat');
+  ok(inc.length > 10 && inc.every((t) => byId(t.dataset.id).needs.sel === 'text') && /texte requis/.test(inc[0].textContent), `compatibilité : ${inc.length} presets texte grisés « texte requis » (clip sélectionné)`);
+  // pile
+  click($('#cats button[data-cat="styles"]'));
+  const s1 = $('#view .tile.card').dataset.id;
+  click($('#view .tile.card [data-act="stack-add"]'));
+  click($('#cats button[data-cat="shake"]'));
+  const s2 = $('#view .tile.card').dataset.id;
+  click($('#view .tile.card [data-act="stack-add"]'));
+  ok($('#cats .rail-btn[data-cat="stack"] .cnt').textContent === '2', 'pile : 2 presets (compteur du rail)');
+  click($('#cats button[data-cat="stack"]'));
+  ok($$('#view .st-item').length === 2, 'vue Pile & perso : 2 lignes');
+  click($('#view [data-act="stack-apply"]'));
+  await sleep(80);
+  const st1 = calls.filter((c) => c.cmd === 'applyStack').pop();
+  ok(st1 && st1.a.items.length === 2 && st1.a.items[0].id === s1 && st1.a.items[1].id === s2 && st1.a.items.every((it) => it.def && it.params), 'pile appliquée en un appel (ordre gardé, recettes + paramètres)');
+  $('#stackName').value = 'Mon combo test';
+  click($('#view [data-act="stack-save"]'));
+  ok(w.YX.app.state.userPresets.length === 1 && /Mon combo test/.test($('#view').textContent), 'preset perso enregistré');
+  w.YX.app.importUser(JSON.stringify([{ yfx: 'user-preset', name: 'Importé', stack: [{ id: 'killhit' }, { id: 'inconnu-xyz' }] }]));
+  ok(w.YX.app.state.userPresets.length === 2 && /1 preset\(s\) inconnu/.test($('#toast').textContent), 'import JSON : 1 preset perso ajouté, preset inconnu signalé');
+  click($$('#view [data-act="user-apply"]')[1]);
+  await sleep(80);
+  ok(calls.filter((c) => c.cmd === 'applyStack').pop().a.name === 'Importé', 'preset perso importé appliqué');
+  // packs : texte + clip sélectionnés
+  click($('#ctx'));
+  click($('#ctx'));
+  await sleep(120);
+  click($('#cats button[data-cat="packs"]'));
+  ok($$('#view .pack-card').length === w.YX.catalog.PACKS.length && w.YX.catalog.PACKS.length === 22, '22 packs de style affichés');
+  click($('#view [data-act="pack-apply"]'));
+  await sleep(80);
+  const pk = calls.filter((c) => c.cmd === 'applyPack').pop();
+  ok(pk && pk.a.look && pk.a.cut && pk.a.beat && pk.a.look.recipe && /Pack/.test($('#toast').textContent), 'pack appliqué : look + coupe + beat en un appel');
+  // SFX : variante du preset, sinon d'un de ses styles, sinon le son de base du type
+  fs.mkdirSync(path.join(ASSETS, 'sfx', 'impact'), { recursive: true });
+  ['impact', 'impact_phonk', 'impact_raw'].forEach((n) => fs.writeFileSync(path.join(ASSETS, 'sfx', 'impact', n + '.wav'), wav()));
+  w.YX.app.state.sfx = w.YX.store.listSfx();
+  const sfxAfter = async (id) => {
+    const n0 = calls.length;
+    click($('#cats button[data-cat="' + byId(id).cat + '"]'));
+    click($(`#view .tile[data-id="${id}"] .hit`));
+    await sleep(120);
+    const c = calls.slice(n0).find((x) => x.cmd === 'sfx');
+    return c ? path.basename(c.a.path) : '(aucun)';
+  };
+  const v1 = await sfxAfter('imp-red-add'), v2 = await sfxAfter('imp-white-punch'), v3 = await sfxAfter('imp-black-cut');
+  ok(v1 === 'impact_phonk.wav' && v2 === 'impact_raw.wav' && v3 === 'impact.wav', `SFX auto : variante du preset (${v1}), d'un de ses styles (${v2}), sinon le son de base (${v3})`);
+  // collections, comparer A/B
+  click($('#cats button[data-cat="impacts"]'));
+  click($('#view .tile[data-id="killhit"] [data-act="more"]'));
+  ok(d.activeElement && d.activeElement.dataset.act === 'apply-detail', 'fiche : le focus est sur Appliquer (Entrée applique)');
+  click($('#sheet [data-act="coll-add"]'));
+  $('#collName').value = 'Intro Valo';
+  click($('#sheet [data-act="coll-create"]'));
+  ok(w.YX.app.state.colls.length === 1 && w.YX.app.state.colls[0].ids[0] === 'killhit', 'collection « Intro Valo » créée avec Kill Hit');
+  click($('#sheet [data-act="detail-of"]'));
+  click($('#sheet [data-act="compare"]'));
+  ok($$('#sheet .ab-cell').length === 2 && $('#abPick'), 'comparer A/B : deux aperçus + choix de B');
+  const opt = $$('#abPick option')[2];
+  $('#abPick').value = opt.value;
+  $('#abPick').dispatchEvent(new w.Event('change', { bubbles: true }));
+  ok($('#sheet h3').textContent.includes(byId(opt.value).name), 'B changé : ' + $('#sheet h3').textContent);
+  click($('#sheet [data-act="ab-apply"]'));
+  await sleep(80);
+  ok(calls.filter((c) => c.cmd === 'apply').pop().a.id === 'killhit', 'Appliquer A depuis la comparaison');
+  click($('#cats button[data-cat="coll"]'));
+  click($('#view .lnk-row'));
+  ok($$('#view .tile.card').length === 1 && /Intro Valo/.test($('#crumb').textContent), 'collection ouverte : 1 carte');
+  $('#collRename').value = 'Intros';
+  click($('#view [data-act="coll-rename"]'));
+  ok(/Intros/.test($('#crumb').textContent), 'collection renommée');
+  // raccourci F sur la carte survolée
+  click($('#cats button[data-cat="impacts"]'));
+  const wasFav = w.YX.app.state.favs.has('flash');
+  $('#view .tile.card[data-id="flash"] .hit').dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+  key('f');
+  ok(w.YX.app.state.favs.has('flash') !== wasFav, 'touche F : favori basculé sur la carte survolée');
+  // historique
+  click($('#btnHistory'));
+  ok($$('#sheet .st-item').length >= 4, `historique : ${$$('#sheet .st-item').length} applications`);
+  click($('#sheet [data-act="undo"]'));
+  await sleep(80);
+  ok(calls.some((c) => c.cmd === 'undo') && $('#sheet').hidden, 'historique : annuler envoie Edit > Undo au moteur');
+  // auto-test complet
+  click($('#btnSettings'));
+  click($('#view [data-act="rx-test-ask"]'));
+  w.YX.mockState.rxFail = 'imp-manga-frame';
+  const nRx0 = calls.length;
+  click($('#sheet [data-act="rx-test-run"]'));
+  for (let i = 0; i < 1200 && !/terminé|arrêté/.test(($('#pvTitle') || {}).textContent || ''); i++) await sleep(25);
+  const rxc = calls.slice(nRx0);
+  const nTest = w.YX.catalog.P.filter((p) => !p.tool).length;
+  ok(rxc[0].cmd === 'rxTestBegin' && rxc.filter((c) => c.cmd === 'rxTest').length === nTest && rxc.filter((c) => /^rx/.test(c.cmd)).pop().cmd === 'rxTestEnd', `auto-test complet : ${nTest} presets testés un par un`);
+  ok(/1 échec/.test($('#pvNow').textContent) && $('#pvErrs').textContent.includes(byId('imp-manga-frame').name), 'auto-test : échec listé (' + $('#pvNow').textContent + ')');
+  click($('#sheet [data-act="close"]'));
+  click($('#view [data-act="probe"]'));
+  await sleep(150);
+  ok(calls.some((c) => c.cmd === 'probe'), 'sonde des effets lancée');
+  w.YX.mockState.delay = undefined;
 
   console.log('\n5. Désactivation, rechargement');
   click($('#btnSettings'));
@@ -264,7 +417,7 @@ const load = async () => {
   ({ w, d, errors } = await load());
   const $2 = (s) => d.querySelector(s);
   ok(!$2('#gate').hidden, 'au redémarrage sans clé : écran de licence');
-  ok(/Perso 1/.test($2('#curveV').textContent) && $2('#btnAuto').getAttribute('aria-pressed') === 'false', 'préférences relues au redémarrage');
+  ok(/Perso 1/.test($2('#curveV').textContent) && $2('#btnAuto').getAttribute('aria-pressed') === 'true', 'préférences relues au redémarrage');
   ok(d.documentElement.getAttribute('data-motion') === 'off' && $2('#panel').classList.contains('wide'), 'apparence relue au redémarrage');
   const allErrors = errs1.concat(errors);
   ok(allErrors.length === 0, 'aucune erreur JS' + (allErrors.length ? ' :\n      ' + Array.from(new Set(allErrors)).slice(0, 8).join('\n      ') : ''));

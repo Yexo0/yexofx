@@ -9,18 +9,24 @@ l'application en 1 clic, puis le nombre de presets (« 20 presets qui claquent >
 - Utilisation et installation : `README.md`.
 
 ## Travailler sur le code
-- `npm install` une fois, puis **`npm run check`** après chaque modification : build (lint ES3) + moteur sur un AE
-  simulé (`tests/host.smoke.mjs`, expressions évaluées image par image) + panel en jsdom (`tests/panel.dom.cjs`).
+- `npm install` une fois, puis **`npm run check`** après chaque modification : build (lint ES3) + catalogue
+  (`tools/catalog.mjs`) + moteur sur un AE simulé (`tests/host.smoke.mjs`, expressions évaluées image par image)
+  + panel en jsdom (`tests/panel.dom.cjs`) + panel dans Edge à 340 / 450 / 560 px (`tests/panel.e2e.mjs`).
 - Moteur : `src/*.jsx` en **ExtendScript ES3** (pas de let/const, flèches, JSON natif…), assemblé par ordre
   alphabétique dans `cep/host/yexofx_host.jsx`. Ne jamais éditer ce fichier généré.
 - matchNames partout ; paramètres d'effets lus avec `Y.p.prop(effect, [matchName, name])`.
 - Réglages d'un preset = Expression Controls `YFX_<Preset>_*`. Tout ce qui est créé commence par `YFX_`.
   1 action = 1 undo group (`Y.exec`). Messages à l'utilisateur en français (`Y.fail`).
-- Nouveau preset : `Y.reg.add` avec le même id que dans `cep/js/catalog.js` (le panel n'active que les ids que le
-  moteur déclare).
+- **Nouveau preset (v1)** : une recette JSON dans `catalog/<catégorie>.json` (ou `.2.json`), à partir des primitives
+  du moteur (`catalog/prims.json`, code dans `src/46..51_p_*.jsx`). Règle n°1 : intensité, durée et courbe sont des
+  réglages, pas des presets ; le lint de `tools/catalog.mjs` bloque les quasi-doublons. Un id publié (`catalog/ids.lock`)
+  ne disparaît jamais. Les 73 presets v0.6 restent en code natif (`impl: "native"`, `Y.reg.add`).
+- `cep/js/catalog.data.js`, `catalog/prims.json`, `docs/CATALOGUE.md` et `docs/STYLES.md` sont générés : ne pas les éditer.
+- Effets AE natifs uniquement (un plugin tiers doit être déclaré dans `needs.plugins`). Un preset lourd a un `alt` léger.
 - Panel : Chromium de CEP (~99) : pas de `:has()`, `color-mix()`, container queries ni nesting CSS.
 - Je ne peux pas lancer After Effects : après chaque livraison, donner des étapes de test précises dans AE et demander
-  le rapport d'auto-test (`%APPDATA%\YexoFX\autotest_*.txt`) ou le texte d'erreur exact.
+  les rapports (`%APPDATA%\YexoFX\probe_*.txt`, `autotest_recettes_*.txt`) ou le texte d'erreur exact. Ne jamais
+  annoncer qu'un preset marche dans AE tant que l'auto-test n'a pas tourné dans le vrai AE.
 
 ## Direction artistique « Rouge impact » (v0.6)
 L'ancien violet lavande est abandonné : Yexo le trouvait « trop IA ». Les tokens sont dans `cep/css/yexofx.css` (:root),

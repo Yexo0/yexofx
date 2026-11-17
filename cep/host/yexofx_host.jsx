@@ -13,8 +13,8 @@
 (function YexoFX(thisObj) {
 
 var Y = {};
-Y.VERSION = "0.6.0";
-Y.BUILD = "2026-11-16 21:29";
+Y.VERSION = "1.0.0";
+Y.BUILD = "2026-11-17 07:04";
 Y.PREFIX = "YFX_";
 
 // Chemin de ce script : fourni par le loader de dev / le bouton Recharger,
@@ -925,8 +925,14 @@ Y.ctx = function (p, raw, comp, sel) {
 // l\u00e8ve Y.UserError (message clair) ou Error (bug, avec ligne) en cas d'\u00e9chec.
 // =====================================================================
 Y.exec = function (id, raw, comp, sel) {
-    var p = Y.reg.byId[id], c, msg;
+    var p = Y.reg.byId[id];
     if (!p) { Y.fail("Ce preset n'est pas encore disponible dans le moteur (" + id + ")."); }
+    return Y.execP(p, raw, comp, sel);
+};
+
+// M\u00eame chose pour un preset d\u00e9j\u00e0 r\u00e9solu (preset natif du registre ou recette du catalogue : Y.rx.preset).
+Y.execP = function (p, raw, comp, sel) {
+    var c, msg;
     c = Y.ctx(p, raw, comp, sel);
     if (!p.noUndo) { app.beginUndoGroup("YexoFX : " + Y.reg.title(p)); }
     try {
@@ -1618,6 +1624,614 @@ Y.rgb.ghosts = function (comp, base, inT, outT, place, offCode) {
         made.push(L);
     }
     return made;
+};
+// ---- src/36_rx.jsx ----
+// =====================================================================
+// RECETTES (v1.0) : registre des primitives, enveloppes, h\u00f4tes, interpr\u00e9teur.
+// Une recette vient du catalogue JSON du panel : { id, name, nameEn, host, drive, recipe: [\u00e9tapes], needs, defaults }.
+// \u00c9tape = { p: primitive, ...param\u00e8tres, env }. Tout passe par Y.exec (1 clic = 1 undo group).
+// Les \u00ab keyframes relatives au CTI ou au beat \u00bb sont des enveloppes d'expression cal\u00e9es sur les markers :
+// d\u00e9placer un marker d\u00e9place l'effet, un seul calque g\u00e8re tous les beats.
+// =====================================================================
+Y.prim = { byId: {}, list: [] };
+
+// def = { label, fx: [matchNames], cost, hosts, main, creates, params: { nom: [type, d\u00e9faut, a, b, "k"] }, install(I, s) }
+// types : "n" nombre (a = min, b = max), "e" choix (a = liste), "b" bool\u00e9en, "c" couleur #rrggbb, "l" liste de choix (a),
+//         "a" tableau de nombres, "t" texte. Drapeau "k" : multipli\u00e9 par l'Intensit\u00e9 (r\u00e9glable apr\u00e8s coup).
+Y.prim.def = function (id, def) {
+    if (Y.prim.byId[id]) { throw new Error("Primitive en double : " + id); }
+    def.id = id;
+    def.params = def.params || {};
+    Y.prim.byId[id] = def;
+    Y.prim.list.push(def);
+    return def;
+};
+
+Y.prim.ids = function () {
+    var r = [], i;
+    for (i = 0; i < Y.prim.list.length; i++) { r.push(Y.prim.list[i].id); }
+    return r;
+};
+
+// Sch\u00e9ma lisible par le build (catalog/prims.json) et le lint.
+Y.prim.schema = function () {
+    var out = {}, i, d;
+    for (i = 0; i < Y.prim.list.length; i++) {
+        d = Y.prim.list[i];
+        out[d.id] = { label: d.label, fx: d.fx || [], cost: d.cost || 1, hosts: d.hosts || "", main: d.main || null,
+                      creates: !!d.creates, params: d.params };
+    }
+    return out;
+};
+
+Y.rx = {};
+
+// Courbes nomm\u00e9es (m\u00eames valeurs que le panel). Elastic = [-1, -1] (courbe sp\u00e9ciale).
+Y.rx.CURVES = {
+    linear: [0, 0, 1, 1], expo: [0.16, 1, 0.3, 1], back: [0.34, 1.56, 0.64, 1], quint: [0.22, 1, 0.36, 1],
+    smooth: [0.65, 0, 0.35, 1], snap: [0.05, 0.9, 0.1, 1], antic: [0.68, -0.55, 0.27, 1.55], aggro: [0.9, 0, 0.1, 1],
+    elastic: [-1, -1, -1, -1]
+};
+Y.rx.SHAPES = { decay: 1, attack: 2, bell: 3, hold: 4, ramp: 5, pulse: 6, strobe: 7, steps: 8 };
+
+// Nombre -> litt\u00e9ral court (pas d'exposant).
+Y.rx.f = function (v) {
+    var r = Math.round(Number(v) * 10000) / 10000;
+    if (isNaN(r)) { r = 0; }
+    return String(r);
+};
+
+// "#ff4655" -> [1, 0.2745, 0.3333]
+Y.rx.rgb = function (hex) {
+    var h = String(hex || "#ffffff").replace("#", "");
+    if (h.length !== 6) { h = "ffffff"; }
+    return [parseInt(h.substr(0, 2), 16) / 255, parseInt(h.substr(2, 2), 16) / 255, parseInt(h.substr(4, 2), 16) / 255];
+};
+Y.rx.rgba = function (hex) {
+    var c = Y.rx.rgb(hex);
+    return [c[0], c[1], c[2], 1];
+};
+
+// Biblioth\u00e8que d'expressions des recettes : enveloppes, cl\u00e9s relatives, marker suivant.
+Y.x.LIB_ENV = [
+    "function yfxEnv(s, x, c1, c2, n, w, f, ev) {",
+    "  if (s == 5) { return (x <= 0) ? 0 : ((x >= 1) ? 1 : yfxCurve(x, c1, c2)); }",
+    "  if (x < 0 || x >= 1) { return 0; }",
+    "  if (s == 1) { return 1 - yfxCurve(x, c1, c2); }",
+    "  if (s == 2) { return yfxCurve(x, c1, c2); }",
+    "  if (s == 3) { return yfxCurve(1 - Math.abs(2 * x - 1), c1, c2); }",
+    "  if (s == 4) { return 1; }",
+    "  if (s == 6) { return ((x * n) % 1 < w) ? 1 - x : 0; }",
+    "  if (s == 7) { return (Math.round(f) % Math.max(1, ev) == 0) ? 1 : 0; }",
+    "  if (s == 8) { return 1 - Math.floor(yfxCurve(x, c1, c2) * n + 0.0001) / n; }",
+    "  return 0;",
+    "}",
+    "function yfxKeys(k, u, c1, c2) {",
+    "  if (u <= k[0][0]) { return k[0][1]; }",
+    "  for (var i = 1; i < k.length; i++) {",
+    "    if (u < k[i][0]) { return k[i - 1][1] + (k[i][1] - k[i - 1][1]) * yfxCurve((u - k[i - 1][0]) / (k[i][0] - k[i - 1][0]), c1, c2); }",
+    "  }",
+    "  return k[k.length - 1][1];",
+    "}",
+    "function yfxNextTag(L, t, tag) {",
+    "  var m = L.marker, i = 1;",
+    "  for (i = 1; i <= m.numKeys; i++) {",
+    "    if (m.key(i).time > t && (tag == \"\" || m.key(i).comment == tag)) { return m.key(i); }",
+    "  }",
+    "  return null;",
+    "}"
+].join("\n");
+
+
+// ---------------------------------------------------------------- validation
+Y.rx.isHex = function (v) {
+    return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+};
+
+// V\u00e9rifie une recette re\u00e7ue du panel. L\u00e8ve Y.fail (message clair) si elle est incoh\u00e9rente.
+Y.rx.check = function (def) {
+    var i, s, P, k, spec, v, j;
+    if (!def || typeof def !== "object") { Y.fail("Recette absente."); }
+    if (!def.id || !def.nameEn) { Y.fail("Recette incompl\u00e8te (id ou nameEn manquant)."); }
+    if (!Y.u.isArray(def.recipe) || !def.recipe.length) { Y.fail(def.name + " : recette vide."); }
+    for (i = 0; i < def.recipe.length; i++) {
+        s = def.recipe[i];
+        P = Y.prim.byId[s.p];
+        if (!P) { Y.fail(def.name + " \u00b7 \u00e9tape " + (i + 1) + " : primitive \u00ab " + s.p + " \u00bb absente de ce moteur. Recharge le moteur apr\u00e8s une mise \u00e0 jour."); }
+        for (k in s) {
+            if (!s.hasOwnProperty(k) || k === "p" || k === "env" || k === "label") { continue; }
+            spec = P.params[k];
+            if (!spec) { Y.fail(def.name + " \u00b7 \u00e9tape " + (i + 1) + " (" + s.p + ") : param\u00e8tre inconnu \u00ab " + k + " \u00bb."); }
+            v = s[k];
+            if (spec[0] === "e" && !Y.u.has(spec[2], v)) {
+                Y.fail(def.name + " \u00b7 \u00e9tape " + (i + 1) + " (" + s.p + ") : \u00ab " + k + " \u00bb = " + v + " (attendu : " + spec[2].join(", ") + ").");
+            }
+            if (spec[0] === "c" && !Y.rx.isHex(v)) { Y.fail(def.name + " \u00b7 \u00e9tape " + (i + 1) + " : couleur \u00ab " + k + " \u00bb invalide (" + v + ")."); }
+            if (spec[0] === "l") {
+                if (!Y.u.isArray(v)) { Y.fail(def.name + " \u00b7 \u00e9tape " + (i + 1) + " : \u00ab " + k + " \u00bb doit \u00eatre une liste."); }
+                for (j = 0; j < v.length; j++) {
+                    if (!Y.u.has(spec[2], v[j])) { Y.fail(def.name + " \u00b7 \u00e9tape " + (i + 1) + " : \u00ab " + v[j] + " \u00bb inconnu dans " + k + "."); }
+                }
+            }
+        }
+    }
+};
+
+// Valeur brute d'un param\u00e8tre (d\u00e9faut du sch\u00e9ma si absent).
+Y.rx.val = function (I, s, name) {
+    var spec = I.P.params[name];
+    if (s[name] !== undefined) { return s[name]; }
+    return spec ? spec[1] : undefined;
+};
+Y.rx.isK = function (I, name) {
+    var spec = I.P.params[name];
+    return !!(spec && spec[4] && Y.u.strPos(spec[4], "k") !== -1);
+};
+
+
+// ---------------------------------------------------------------- instance (une application sur un calque)
+// I = { c, def, comp, L (calque qui porte les r\u00e9glages), base, tag, drive, src ("" ou r\u00e9f. au calque ma\u00eetre),
+//       n: noms des r\u00e9glages communs, P: primitive en cours, s: \u00e9tape en cours, k: index d'\u00e9tape, lastFx }
+Y.rx.inst = function (c, def, L, base, tag) {
+    return { c: c, def: def, comp: c.comp, L: L, M: L, base: base, tag: tag || null, drive: def.drive, src: "", n: {},
+             P: null, s: null, k: 0, lastFx: null, lastParam: null, made: [], main: {}, tc: null };
+};
+
+// R\u00e9glages communs : Dur\u00e9e, Intensit\u00e9, Courbe (sur le calque ma\u00eetre).
+Y.rx.init = function (I) {
+    var c = I.c, L = I.M;
+    if (I.n.int) { return I.n; }
+    I.n.int = Y.ctl.add(L, "slider", I.base + "_Intensite", Math.round(c.intensity * 100)).name;
+    if (I.drive !== "static" && I.drive !== "loop") {
+        I.n.dur = Y.ctl.add(L, "slider", I.base + "_Duree", c.frames).name;
+        I.n.curve = Y.ctl.addCurve(L, I.base, c.curve);
+    }
+    return I.n;
+};
+
+// Copie de l'instance pour un calque fr\u00e8re (solide, ajustement) qui lit les r\u00e9glages et markers du ma\u00eetre.
+Y.rx.child = function (I, L) {
+    var J = {}, k;
+    for (k in I) { if (I.hasOwnProperty(k)) { J[k] = I[k]; } }
+    J.L = L;
+    J.src = Y.kit.layerRef(I.M.name);
+    return J;
+};
+
+// Calque fr\u00e8re plac\u00e9 au-dessus du ma\u00eetre, m\u00eame dur\u00e9e. kind : "adj" | "solid". Renvoie l'instance enfant.
+Y.rx.sibling = function (I, suffix, kind, color, blend) {
+    var M = I.M, name = Y.kit.freeName(I.comp, I.base + "_" + suffix), L, tag = kind === "adj" ? "adj" : "sib_" + String(color || "#000000").replace("#", "");
+    L = Y.l.addSolid(I.comp, name, kind === "adj" ? [1, 1, 1] : Y.rx.rgb(color), tag, { adjustment: kind === "adj", inPoint: M.inPoint, outPoint: M.outPoint });
+    L.moveBefore(M);
+    if (blend && BlendingMode[blend]) { L.blendingMode = BlendingMode[blend]; }
+    I.made.push(L.name);
+    return Y.rx.child(I, L);
+};
+
+// Calque d'ajustement \u00ab porte \u00bb : les effets qui ne s'animent pas (seuil, inversion, miroir\u2026) sont pos\u00e9s dessus et son
+// opacit\u00e9 suit l'enveloppe. En continu (loop / static), ils vont directement sur l'h\u00f4te.
+Y.rx.gate = function (I, s, suffix, blend) {
+    var J;
+    if (I.drive === "loop" || I.drive === "static") { return I; }
+    J = Y.rx.sibling(I, suffix, "adj", null, blend);
+    Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "100 * EP;"));
+    return J;
+};
+
+
+// ---------------------------------------------------------------- code d'expression
+Y.rx.C = function (I, name) {
+    return Y.kit.C(I.src, name);
+};
+Y.rx.lay = function (I) {
+    return I.src ? I.src.substr(0, I.src.length - 1) : "thisLayer";
+};
+
+// Pr\u00e9ambule selon le pilotage. D\u00e9finit fd, K, c1, c2, tt (s depuis le d\u00e9clencheur), u (progression), D, fr, sd (graine).
+Y.rx.pre = function (I) {
+    var n = Y.rx.init(I), C = function (x) { return Y.rx.C(I, x); }, lay = Y.rx.lay(I), d = I.drive, s;
+    s = Y.x.LIB_CURVE + "\n" + Y.x.LIB_ENV + "\n" +
+        "var fd = thisComp.frameDuration, K = " + C(n.int) + " / 100;\n" +
+        "var LAY = " + lay + ";\n";
+    if (d === "marker") {
+        s += Y.x.LIB_MARKER + "\n" + Y.x.LIB_TAG + "\n" +
+            "var c1 = " + C(n.curve.p1) + ", c2 = " + C(n.curve.p2) + ";\n" +
+            "var D = Math.max(1, " + C(n.dur) + ") * fd;\n" +
+            "var mk = " + (I.tag ? "yfxPrevTag(LAY, time, \"" + Y.x.esc(I.tag) + "\")" : "yfxPrevMarker(LAY, time)") + ";\n" +
+            "var nk = yfxNextTag(LAY, time, \"" + (I.tag ? Y.x.esc(I.tag) : "") + "\");\n" +
+            "var tt = mk ? time - mk.time : 1e6, tn = nk ? time - nk.time : -1e6;\n" +
+            "var sd = mk ? mk.index : 0;\n";
+    } else if (d === "cut") {
+        s += "var c1 = " + C(n.curve.p1) + ", c2 = " + C(n.curve.p2) + ";\n" +
+            "var D = Math.max(fd, LAY.outPoint - LAY.inPoint);\n" +
+            "var tt = time - LAY.inPoint, tn = -1e6, sd = 1;\n" +
+            "var p = Math.max(0, Math.min(1, tt / D)), half = (p < 0.5) ? 0 : 1, q = half ? (p - 0.5) * 2 : p * 2;\n" +
+            "var outE = 1 - yfxCurve(1 - q, c1, c2), inE = yfxCurve(q, c1, c2);\n";
+    } else if (d === "inout") {
+        s += "var c1 = " + C(n.curve.p1) + ", c2 = " + C(n.curve.p2) + ";\n" +
+            "var D = Math.max(1, " + C(n.dur) + ") * fd;\n" +
+            "var tt = time - LAY.inPoint, tn = -1e6, sd = 1;\n" +
+            "var IO = Math.min(yfxCurve(Math.max(0, Math.min(1, tt / D)), c1, c2), yfxCurve(Math.max(0, Math.min(1, (LAY.outPoint - time) / D)), c1, c2));\n";
+    } else {
+        s += "var c1 = [0, 0], c2 = [1, 1];\n" +
+            "var D = Math.max(fd, LAY.outPoint - LAY.inPoint);\n" +
+            "var tt = time - LAY.inPoint, tn = -1e6, sd = 1;\n";
+    }
+    s += "var u = tt / D, fr = Math.floor(tt / fd + 0.001);\n";
+    return s;
+};
+
+// Code de l'enveloppe d'une \u00e9tape : d\u00e9finit E (peut d\u00e9passer 0..1 avec une courbe \u00e0 rebond) et EP (born\u00e9 0..1).
+Y.rx.envCode = function (I, s) {
+    var e = s ? s.env : null, d = I.drive, shape, len, at, cv, cc, x, xn, args, out, b;
+    if (e === "none") { return "var E = 1, EP = 1;\n"; }
+    if (!e || e === "main") {
+        if (d === "marker") { return "var E = (tt >= 0 && tt < D) ? 1 - yfxCurve(tt / D, c1, c2) : 0;\nvar EP = Math.max(0, Math.min(1, E));\n"; }
+        if (d === "cut") { return "var E = yfxCurve(1 - Math.abs(2 * p - 1), c1, c2);\nvar EP = Math.max(0, Math.min(1, E));\n"; }
+        if (d === "inout") { return "var E = IO, EP = Math.max(0, Math.min(1, IO));\n"; }
+        return "var E = 1, EP = 1;\n";
+    }
+    if (e === "loop") { return "var E = 1, EP = 1;\n"; }
+    shape = Y.rx.SHAPES[e.shape] || 1;
+    at = Number(e.at || 0);
+    cv = e.curve || "main";
+    if (cv === "main") { cc = "c1, c2"; } else {
+        b = Y.rx.CURVES[cv] || Y.rx.CURVES.linear;
+        cc = "[" + Y.rx.f(b[0]) + ", " + Y.rx.f(b[1]) + "], [" + Y.rx.f(b[2]) + ", " + Y.rx.f(b[3]) + "]";
+    }
+    len = e.frames ? "(" + Y.rx.f(e.frames) + " * fd)" : "(" + Y.rx.f(e.len || 1) + " * D)";
+    args = cc + ", " + Y.rx.f(e.n || 3) + ", " + Y.rx.f(e.duty || 0.5) + ", ";
+    if (d === "loop" || d === "static") {
+        // en continu : l'enveloppe se r\u00e9p\u00e8te (respiration, pulsations).
+        x = "((time % " + len + ") / " + len + ")";
+        out = "var E = yfxEnv(" + shape + ", " + x + ", " + args + "Math.floor((time % " + len + ") / fd + 0.001), " + Y.rx.f(e["every"] || 2) + ");\n";
+    } else {
+        x = "((tt - " + Y.rx.f(at) + " * D) / " + len + ")";
+        out = "var E = yfxEnv(" + shape + ", " + x + ", " + args + "Math.floor((tt - " + Y.rx.f(at) + " * D) / fd + 0.001), " + Y.rx.f(e["every"] || 2) + ");\n";
+        if (at < 0 && d === "marker") {
+            xn = "((tn - " + Y.rx.f(at) + " * D) / " + len + ")";
+            out += "E = Math.max(E, yfxEnv(" + shape + ", " + xn + ", " + args + "Math.floor((tn - " + Y.rx.f(at) + " * D) / fd + 0.001), " + Y.rx.f(e["every"] || 2) + "));\n";
+        }
+        if (d === "inout") { out += "E = E * IO;\n"; }
+    }
+    return out + "var EP = Math.max(0, Math.min(1, E));\n";
+};
+
+// Expression compl\u00e8te : pr\u00e9ambule + enveloppe de l'\u00e9tape + corps.
+Y.rx.expr = function (I, s, body) {
+    return Y.rx.pre(I) + Y.rx.envCode(I, s) + body;
+};
+
+// Valeur num\u00e9rique d'un param\u00e8tre, en code. Le param\u00e8tre principal de la primitive devient un r\u00e9glage
+// (slider) sur le calque ma\u00eetre. "k" : multipli\u00e9 par K (Intensit\u00e9).
+Y.rx.num = function (I, s, name) {
+    var v = Y.rx.val(I, s, name), code, k = Y.rx.isK(I, name), label;
+    if (v && typeof v === "object" && !Y.u.isArray(v)) {
+        if (v.keys) { code = "yfxKeys(" + Y.json.stringify(v.keys) + ", u, c1, c2)"; }
+        else { code = "(" + Y.rx.f(v.from) + " + " + Y.rx.f(Number(v.to) - Number(v.from)) + " * E)"; }
+    } else if (I.P.main === name && typeof v === "number") {
+        if (!I.main[I.k]) {
+            label = s.label || I.P.label;
+            I.main[I.k] = Y.ctl.add(I.M, "slider", I.base + "_" + label, Y.u.round(v, 3)).name;
+        }
+        code = Y.rx.C(I, I.main[I.k]);
+    } else {
+        code = Y.rx.f(v);
+    }
+    return k ? "(" + code + " * K)" : code;
+};
+
+// Montant anim\u00e9 : un nombre suit l'enveloppe (x E) ; des cl\u00e9s ou from / to sont d\u00e9j\u00e0 anim\u00e9s.
+Y.rx.amt = function (I, s, name, positive) {
+    var v = Y.rx.val(I, s, name);
+    if (v && typeof v === "object" && !Y.u.isArray(v)) { return Y.rx.num(I, s, name); }
+    return "(" + Y.rx.num(I, s, name) + " * " + (positive ? "EP" : "E") + ")";
+};
+
+
+// ---------------------------------------------------------------- effets (avec trace pour les erreurs)
+Y.rx.add = function (I, mns, re, suffix, L) {
+    I.lastFx = mns[0];
+    I.lastParam = null;
+    return Y.fxe.add(L || I.L, mns, re, I.base + "_" + suffix);
+};
+Y.rx.p = function (I, fx, keys, L) {
+    I.lastParam = keys.join(" / ");
+    return Y.fxe.p(L || I.L, fx, keys);
+};
+Y.rx.set = function (I, fx, keys, v, L) {
+    Y.rx.p(I, fx, keys, L).setValue(v);
+};
+Y.rx.setx = function (I, fx, keys, code, L) {
+    Y.x.set(Y.rx.p(I, fx, keys, L), code);
+};
+
+// Motion Tile (bords en miroir) une seule fois par calque et par instance.
+Y.rx.tile = function (I, pct) {
+    var nm = I.base + "_Tile", t;
+    if (!pct || Y.p.findEffect(I.L, nm)) { return; }
+    I.lastFx = "ADBE Tile";
+    t = Y.p.addEffect(I.L, "ADBE Tile", nm).name;
+    Y.fxe.set(I.L, t, Y.shake.TILE.outW, pct);
+    Y.fxe.set(I.L, t, Y.shake.TILE.outH, pct);
+    Y.fxe.set(I.L, t, Y.shake.TILE.mirror, 1);
+};
+
+// Effet Transform (le calque garde sa propre transform). shutter = angle d'obturation (motion blur).
+Y.rx.transform = function (I, suffix, shutter) {
+    I.lastFx = "ADBE Geometry2";
+    var tr = Y.p.addEffect(I.L, "ADBE Geometry2", Y.p.uniqueName(I.L, I.base + "_" + suffix)).name;
+    Y.fxe.set(I.L, tr, Y.shake.TR.compShutter, 0);
+    Y.fxe.set(I.L, tr, Y.shake.TR.shutter, shutter === undefined ? 180 : shutter);
+    return tr;
+};
+
+
+// ---------------------------------------------------------------- ex\u00e9cution des \u00e9tapes
+Y.rx.steps = function (I) {
+    var i, s, P, r = I.def.recipe;
+    for (i = 0; i < r.length; i++) {
+        s = r[i];
+        P = Y.prim.byId[s.p];
+        I.P = P;
+        I.s = s;
+        I.k = i;
+        if (!I.L && !P.creates) { Y.fail(I.def.name + " : h\u00f4te \u00ab new \u00bb sans primitive qui cr\u00e9e le calque."); }
+        try {
+            P.install(I, s);
+        } catch (e) {
+            Y.rx.rethrow(I, i, s, e);
+        }
+    }
+};
+
+// Erreur d'une \u00e9tape : on ajoute le preset, l'\u00e9tape, l'effet AE en cause et quoi faire.
+Y.rx.rethrow = function (I, i, s, e) {
+    var where = I.def.name + " \u00b7 \u00e9tape " + (i + 1) + " (" + I.P.label + ")";
+    var fx = I.lastFx ? " \u00b7 effet " + Y.fx.label(I.lastFx) + " (" + I.lastFx + ")" + (I.lastParam ? ", param\u00e8tre " + I.lastParam : "") : "";
+    if (e && e.yfx) { Y.fail(where + " : " + e.message); }
+    throw new Error(where + fx + " : " + Y.errText(e) + ". \u00c0 faire : R\u00e9glages > Diagnostic > Sonde des effets, puis envoie-moi le rapport.");
+};
+
+// Pose la recette sur un calque (r\u00e9glages + \u00e9tapes). Renvoie l'instance.
+Y.rx.install = function (def, c, L, base, tag) {
+    var I = Y.rx.inst(c, def, L, base, tag);
+    if (I.drive !== "static" && def.host !== "text") { Y.rx.init(I); }
+    Y.rx.steps(I);
+    return I;
+};
+
+
+// ---------------------------------------------------------------- h\u00f4tes
+Y.rx.addMarkers = function (L, times, tag) {
+    for (var j = 0; j < times.length; j++) { Y.m.add(L, times[j], tag); }
+};
+
+// any / adj : calques visuels s\u00e9lectionn\u00e9s (sauf adj), sinon calque d'ajustement YFX_<Nom>.
+Y.rx.hostAny = function (def, c, base, forceAdj) {
+    var s = Y.kit.split(c.layers), md = def.drive === "marker", times, i, L, done = 0, reused = 0, existing, what, tg;
+    times = (md && s.triggers.length) ? s.triggers : [c.time];
+    what = times.length > 1 ? times.length + " impacts (markers de " + s.audioNames.join(", ") + ")" : "au CTI " + Y.u.tc(times[0], c.comp);
+    if (s.targets.length && !forceAdj) {
+        for (i = 0; i < s.targets.length; i++) {
+            L = s.targets[i];
+            tg = Y.u.begins(L.name, Y.PREFIX) ? null : base;
+            if (md && Y.p.findEffect(L, base + "_Intensite")) { reused++; } else { Y.rx.install(def, c, L, base, tg); done++; }
+            if (md) { Y.rx.addMarkers(L, times, base); }
+        }
+        return (done ? done + " calque(s) \u00e9quip\u00e9(s)" : "") + (done && reused ? ", " : "") + (reused ? "marker ajout\u00e9" : "") + (md ? " \u00b7 " + what : "");
+    }
+    existing = Y.l.findByName(c.comp, base);
+    if (existing && md) {
+        if (existing.locked) { Y.fail(Y.MSG.locked(existing)); }
+        Y.rx.addMarkers(existing, times, base);
+        return what + " ajout\u00e9 sur " + base + " (" + Y.m.prop(existing).numKeys + " au total)";
+    }
+    if (existing && def.drive !== "inout") {
+        existing.selected = true;
+        return base + " existe d\u00e9j\u00e0 dans la comp : il est s\u00e9lectionn\u00e9, r\u00e8gle-le dans Effect Controls.";
+    }
+    if (def.drive === "inout") {
+        L = Y.l.addSolid(c.comp, Y.kit.freeName(c.comp, base), [1, 1, 1], "adj", { adjustment: true, inPoint: c.time, outPoint: Math.min(c.comp.duration, c.time + 3) });
+        Y.rx.install(def, c, L, base, null);
+        return "calque " + L.name + " pos\u00e9 \u00e0 " + Y.u.tc(c.time, c.comp) + " pour 3 s";
+    }
+    L = Y.l.addSolid(c.comp, base, [1, 1, 1], "adj", { adjustment: true });
+    Y.rx.install(def, c, L, base, null);
+    if (md) {
+        Y.rx.addMarkers(L, times, base);
+        return "calque " + base + " cr\u00e9\u00e9 \u00b7 " + what + " \u00b7 recliquer ajoute un impact au CTI";
+    }
+    return "calque " + base + " cr\u00e9\u00e9 sur toute la comp";
+};
+
+// layer / text / clip : uniquement les calques s\u00e9lectionn\u00e9s.
+Y.rx.hostSel = function (def, c, base) {
+    var i, L, n = 0, md = def.drive === "marker";
+    for (i = 0; i < c.layers.length; i++) {
+        L = c.layers[i];
+        if (def.host === "text" && !(L instanceof TextLayer)) { continue; }
+        if (def.host === "clip" && !L.canSetTimeRemapEnabled) { continue; }
+        Y.rx.install(def, c, L, base, base);
+        if (md) { Y.m.add(L, c.time, base); }
+        n++;
+    }
+    if (!n) { Y.fail(def.host === "clip" ? "S\u00e9lectionne le clip (footage ou pr\u00e9comp) : ce preset utilise le Time Remapping." : Y.MSG.layer); }
+    return n + " calque(s)" + (md ? " \u00b7 au CTI " + Y.u.tc(c.time, c.comp) : "");
+};
+
+// cut : calque d'ajustement centr\u00e9 sur la coupe.
+Y.rx.hostCut = function (def, c, base) {
+    var w = Y.kit.transWindow(c), name = Y.kit.freeName(c.comp, base), L;
+    L = Y.l.addSolid(c.comp, name, [1, 1, 1], "adj", { adjustment: true, inPoint: w.inT, outPoint: w.outT });
+    Y.rx.install(def, c, L, name, null);
+    return "pos\u00e9e sur la coupe (" + Y.u.tc(w.t, c.comp) + ") \u00b7 " + c.frames + " f \u00b7 calque " + name;
+};
+
+// two : plan sortant A + plan entrant B. Les r\u00e9glages vont sur B, un marker (commentaire = nom) marque la coupe.
+Y.rx.hostTwo = function (def, c, base) {
+    var a = c.layers[0], b = c.layers[1], A = (b.inPoint >= a.inPoint) ? a : b, B = (A === a) ? b : a, I;
+    I = Y.rx.inst(c, def, B, base, base);
+    I.drive = "marker";
+    I.A = A;
+    I.B = B;
+    I.cut = B.inPoint;
+    Y.rx.init(I);
+    Y.m.add(B, I.cut, base);
+    Y.rx.steps(I);
+    return A.name + " \u2192 " + B.name + " \u00b7 coupe \u00e0 " + Y.u.tc(I.cut, c.comp) + " \u00b7 " + c.frames + " f";
+};
+
+// new : la premi\u00e8re \u00e9tape cr\u00e9e le calque (I.L) ; les suivantes s'y posent.
+Y.rx.hostNew = function (def, c, base) {
+    var md = def.drive === "marker", existing = md ? Y.l.findByName(c.comp, base) : null, I, times, s;
+    s = Y.kit.split(c.layers);
+    times = (md && s.triggers.length) ? s.triggers : [c.time];
+    if (existing) {
+        if (existing.locked) { Y.fail(Y.MSG.locked(existing)); }
+        Y.rx.addMarkers(existing, times, base);
+        return (times.length > 1 ? times.length + " d\u00e9clenchements" : "d\u00e9clenchement au CTI") + " ajout\u00e9(s) sur " + base;
+    }
+    I = Y.rx.inst(c, def, null, md ? base : Y.kit.freeName(c.comp, base), null);
+    I.L = null;
+    I.M = null;
+    Y.rx.steps(I);
+    if (md && I.M) { Y.rx.addMarkers(I.M, times, I.base); }
+    return "calque " + (I.M ? I.M.name : base) + " cr\u00e9\u00e9" + (md ? " \u00b7 recliquer ajoute un d\u00e9clenchement au CTI" : " \u00e0 " + Y.u.tc(c.time, c.comp));
+};
+
+// Appel\u00e9 par une primitive \u00ab creates \u00bb : le calque cr\u00e9\u00e9 devient l'h\u00f4te et re\u00e7oit les r\u00e9glages.
+// span : "comp" (toute la comp) ou "cti" (CTI -> CTI + 3 s).
+Y.rx.adopt = function (I, L, span) {
+    var c = I.c;
+    L.comment = "YexoFX";
+    L.name = I.base;
+    if (span === "cti") {
+        L.inPoint = c.time;
+        L.outPoint = Math.min(c.comp.duration, c.time + 3);
+    } else {
+        L.inPoint = 0;
+        L.outPoint = c.comp.duration;
+    }
+    I.L = L;
+    I.M = L;
+    if (I.drive !== "static") { Y.rx.init(I); }
+    return L;
+};
+
+// Calque cr\u00e9\u00e9 par une primitive : h\u00f4te principal s'il n'y en a pas encore, sinon calque secondaire au-dessus du ma\u00eetre.
+Y.rx.place = function (I, L, suffix, span) {
+    if (!I.L) { return Y.rx.adopt(I, L, span); }
+    L.comment = "YexoFX";
+    L.name = Y.kit.freeName(I.comp, I.base + "_" + suffix);
+    L.inPoint = I.M.inPoint;
+    L.outPoint = I.M.outPoint;
+    L.moveBefore(I.M);
+    I.made.push(L.name);
+    return L;
+};
+
+Y.rx.run = function (def, c) {
+    var base = Y.PREFIX + String(def.nameEn).replace(/[^A-Za-z0-9]/g, ""), h = def.host, msg;
+    if (h === "any" || h === "adj") { msg = Y.rx.hostAny(def, c, base, h === "adj"); }
+    else if (h === "layer" || h === "text" || h === "clip") { msg = Y.rx.hostSel(def, c, base); }
+    else if (h === "cut") { msg = Y.rx.hostCut(def, c, base); }
+    else if (h === "two") { msg = Y.rx.hostTwo(def, c, base); }
+    else if (h === "new") { msg = Y.rx.hostNew(def, c, base); }
+    else { Y.fail(def.name + " : h\u00f4te \u00ab " + h + " \u00bb inconnu."); }
+    return def.name + " : " + msg;
+};
+
+// Point d'entr\u00e9e : recette du catalogue -> preset \u00e9ph\u00e9m\u00e8re ex\u00e9cut\u00e9 par Y.execP (validation, undo group).
+Y.rx.preset = function (def) {
+    var needs = (def.needs && def.needs.sel) ? def.needs.sel : "comp", f = 12;
+    Y.rx.check(def);
+    if (!Object.prototype.hasOwnProperty.call(Y.NEEDS, needs)) { Y.fail(def.name + " : besoin inconnu \u00ab " + needs + " \u00bb."); }
+    if (def.defaults && typeof def.defaults.frames === "number") { f = def.defaults.frames; }
+    if (def.host === "clip" && needs === "any") { needs = "av"; }
+    return { id: def.id, name: def.name, needs: needs, f: f, run: function (c) { return Y.rx.run(def, c); } };
+};
+
+Y.rx.exec = function (def, raw, comp, sel) {
+    return Y.execP(Y.rx.preset(def), raw, comp, sel);
+};
+
+// Pack de style : look sur toute la comp, une transition \u00e0 chaque coupe entre les clips s\u00e9lectionn\u00e9s, un impact sur
+// chaque beat (markers du calque audio s\u00e9lectionn\u00e9, sinon chaque coupe). Un seul undo group pour tout.
+// a = { name, look: def, cut: def, beat: def, params, sfx: { cut: chemin, beat: chemin } } (sons facultatifs)
+Y.rx.pack = function (a) {
+    var comp, sel, i, L, clips = [], audio = null, cuts = [], beats = [], t0, msgs = [], P = a.params || {}, run, n = 0, cutT = [], nS = 0, sfx = a.sfx || {};
+    if (!app.project) { Y.fail(Y.MSG.noProject); }
+    comp = app.project.activeItem;
+    if (!(comp instanceof CompItem)) { Y.fail(Y.MSG.noComp); }
+    sel = comp.selectedLayers;
+    for (i = 0; i < sel.length; i++) {
+        L = sel[i];
+        if (!(L instanceof AVLayer) || Y.u.begins(L.name, Y.PREFIX)) { continue; }
+        if (L.hasAudio && !L.hasVideo) { if (!audio) { audio = L; } } else { clips.push(L); }
+    }
+    if (clips.length < 2) { Y.fail("S\u00e9lectionne au moins 2 clips qui se suivent (et ta musique avec ses markers de beat si tu en as)."); }
+    clips.sort(function (x, y) { return x.inPoint - y.inPoint; });
+    for (i = 1; i < clips.length; i++) { cuts.push([clips[i - 1], clips[i]]); cutT.push(clips[i].inPoint); }
+    beats = audio ? Y.m.times(audio) : [];
+    t0 = comp.time;
+    run = function (def, s, time) {
+        var p, c;
+        if (!def) { return; }
+        p = (def.impl === "native") ? Y.reg.byId[def.id] : Y.rx.preset(def);
+        if (!p) { Y.fail("Preset absent du moteur : " + def.id); }
+        comp.time = time;
+        c = Y.ctx(p, { frames: def.defaults && typeof def.defaults.frames === "number" ? def.defaults.frames : 0, intensity: P.intensity, curve: P.curve }, comp, s);
+        msgs.push(p.run(c));
+        n++;
+    };
+    app.beginUndoGroup("YexoFX : pack " + (a.name || ""));
+    try {
+        run(a.look, [], t0);
+        for (i = 0; i < cuts.length; i++) { run(a.cut, cuts[i], cuts[i][1].inPoint); }
+        if (a.beat) {
+            if (audio && beats.length) { run(a.beat, [audio], t0); }
+            else { for (i = 0; i < cuts.length; i++) { run(a.beat, [], cuts[i][1].inPoint); } }
+        }
+        // sons du style : un \u00e0 chaque coupe, un sur chaque beat (ou chaque coupe sans musique)
+        if (sfx.cut) { nS += Y.audio.addAt(comp, String(sfx.cut), cutT); }
+        if (sfx.beat) { nS += Y.audio.addAt(comp, String(sfx.beat), (audio && beats.length) ? beats : (sfx.cut ? [] : cutT)); }
+    } catch (e) {
+        Y.log(e && e.yfx ? "WARN" : "ERROR", "pack " + a.name + " : " + Y.errText(e));
+        throw e;
+    } finally {
+        comp.time = t0;
+        app.endUndoGroup();
+    }
+    return "Pack " + (a.name || "") + " : look + " + cuts.length + " transition(s) + " + (a.beat ? (audio && beats.length ? beats.length + " impact(s) sur les beats" : cuts.length + " impact(s) sur les coupes") : "aucun impact") + (nS ? " + " + nS + " son(s)" : "") + " \u00b7 Ctrl+Z annule tout";
+};
+
+// Pile (preset perso) : items = [{ id, def?, params }]. Tout est valid\u00e9 avant de toucher au projet, puis appliqu\u00e9
+// dans un seul undo group.
+Y.rx.stack = function (items, name) {
+    var comp, sel, ps = [], i, it, p, msgs = [];
+    if (!app.project) { Y.fail(Y.MSG.noProject); }
+    comp = app.project.activeItem;
+    if (!(comp instanceof CompItem)) { Y.fail(Y.MSG.noComp); }
+    if (!items.length) { Y.fail("Pile vide : ajoute au moins un preset."); }
+    sel = comp.selectedLayers;
+    for (i = 0; i < items.length; i++) {
+        it = items[i];
+        p = (it.def && it.def.impl !== "native") ? Y.rx.preset(it.def) : Y.reg.byId[String(it.id)];
+        if (!p) { Y.fail("Preset absent du moteur : " + it.id); }
+        ps.push({ p: p, c: Y.ctx(p, it.params || {}, comp, sel) });
+    }
+    app.beginUndoGroup("YexoFX : " + name);
+    try {
+        for (i = 0; i < ps.length; i++) { msgs.push(ps[i].p.run(ps[i].c)); }
+    } catch (e) {
+        Y.log(e && e.yfx ? "WARN" : "ERROR", "pile " + name + " : " + Y.errText(e));
+        throw e;
+    } finally {
+        app.endUndoGroup();
+    }
+    Y.log("INFO", "pile " + name + " : " + ps.length + " preset(s)");
+    return name + " : " + ps.length + " preset(s) appliqu\u00e9(s) \u00b7 " + msgs.join(" \u00b7 ");
 };
 // ---- src/40_shake.jsx ----
 // =====================================================================
@@ -2350,6 +2964,1199 @@ Y.reg.add({
         return "Pop-in sur " + B.name + " \u00b7 " + c.frames + " f \u00b7 r\u00e9glages " + base + "_*";
     }
 });
+// ---- src/46_p_motion.jsx ----
+// =====================================================================
+// PRIMITIVES : mouvement (effet Transform + Motion Tile), temps, flou.
+// Reprend la m\u00e9canique v0.6 (40_shake, 43_twitch, 50_timing) sous forme param\u00e9trable.
+// =====================================================================
+Y.pm = {};
+
+// Code qui d\u00e9finit les unit\u00e9s de mouvement ox, oy (position), orr (rotation), oz (zoom), \u00e0 multiplier par l'amplitude.
+// f = fr\u00e9quence, E / EP = enveloppe, tt / u / fr / sd = temps depuis le d\u00e9clencheur. loop = pilotage continu.
+Y.pm.unit = function (pattern, seed, loop) {
+    var S = Y.rx.f(seed || 0), T = "6.2832", s;
+    s = "seedRandom(sd * 7 + " + S + ", true);\n" +
+        "var px = random(0, 6.2832), py = random(0, 6.2832), pr = random(0, 6.2832), ox = 0, oy = 0, orr = 0, oz = 0;\n";
+    if (pattern === "wiggle") {
+        s += "ox = E * (0.6 * Math.sin(" + T + " * f * tt + px) + 0.4 * Math.sin(" + T + " * f * 2.13 * tt + py));\n" +
+             "oy = E * (0.6 * Math.sin(" + T + " * f * 0.93 * tt + py) + 0.4 * Math.sin(" + T + " * f * 1.71 * tt + pr));\n" +
+             "orr = E * Math.sin(" + T + " * f * 0.7 * tt + pr);\n";
+    } else if (pattern === "bursts") {
+        s += "var seg = 1 / Math.max(0.1, f), si = Math.floor(tt / seg);\n" +
+             "seedRandom(si * 13 + " + S + " + 3, true);\n" +
+             "var on = random() < 0.45, lt = tt - si * seg, kb = on ? Math.max(0, 1 - lt / (seg * 0.6)) : 0, qx = random(0, 6.2832), qy = random(0, 6.2832);\n" +
+             "ox = E * kb * Math.sin(" + T + " * 14 * lt + qx);\n" +
+             "oy = E * kb * Math.sin(" + T + " * 16.5 * lt + qy);\n" +
+             "orr = 0.5 * ox;\n";
+    } else if (pattern === "jumps") {
+        s += "var seg = 1 / Math.max(0.1, f), si = Math.floor(tt / seg);\n" +
+             "seedRandom(si * 17 + " + S + " + 50, true);\n" +
+             "var kj = Math.max(0, 1 - (tt - si * seg) / (6 * fd)), jx = random(-1, 1), jy = random(-1, 1);\n" +
+             "ox = E * (jx * kj + 0.3 * Math.sin(" + T + " * 0.6 * tt + px));\n" +
+             "oy = E * (jy * kj + 0.3 * Math.sin(" + T + " * 0.5 * tt + py));\n" +
+             "orr = 0.4 * ox;\n";
+    } else if (pattern === "rumble" || pattern === "quake") {
+        s += "var rb = " + (loop ? "1" : "(tt >= 0 && tt < D) ? Math.sin(Math.PI * tt / D) : 0") + ";\n";
+        if (pattern === "rumble") {
+            s += "ox = rb * 0.4 * Math.sin(" + T + " * f * tt + px);\n" +
+                 "oy = rb * (0.7 * Math.sin(" + T + " * f * 1.13 * tt + py) + 0.3 * Math.sin(" + T + " * f * 2.3 * tt + pr));\n" +
+                 "orr = rb * 0.3 * Math.sin(" + T + " * f * 0.9 * tt + pr);\n";
+        } else {
+            s += "ox = rb * (0.7 * Math.sin(" + T + " * 1.3 * tt + px) + 0.3 * Math.sin(" + T + " * f * tt + py));\n" +
+                 "oy = rb * (0.5 * Math.sin(" + T + " * 1.1 * tt + py) + 0.5 * Math.sin(" + T + " * f * 1.21 * tt + px));\n" +
+                 "orr = rb * Math.sin(" + T + " * 0.9 * tt + pr);\n";
+        }
+    } else if (pattern === "roll") {
+        s += "orr = E * Math.sin(" + T + " * f * tt);\n";
+    } else if (pattern === "recoil") {
+        s += "ox = 0.12 * E * Math.sin(" + T + " * f * tt + px);\n" +
+             "oy = -E;\n" +
+             "orr = -0.4 * E;\n";
+    } else if (pattern === "heartbeat") {
+        s += "var hu = " + (loop ? "(time * f) % 1" : "u") + ";\n" +
+             "var hb = (hu >= 0 && hu < 1) ? Math.exp(-Math.pow(hu * 12, 2)) + 0.65 * Math.exp(-Math.pow((hu - 0.28) * 12, 2)) : 0;\n" +
+             "oy = 0.6 * hb;\n" +
+             "oz = hb;\n";
+    } else if (pattern === "drunk") {
+        s += "ox = E * (0.6 * Math.sin(" + T + " * 0.31 * f * tt + px) + 0.4 * Math.sin(" + T + " * 0.17 * f * tt));\n" +
+             "oy = E * 0.5 * Math.sin(" + T + " * 0.23 * f * tt + py);\n" +
+             "orr = E * Math.sin(" + T + " * 0.2 * f * tt + pr);\n";
+    } else if (pattern === "step") {
+        s += "seedRandom(sd * 97 + Math.floor(fr / 2) + " + S + ", true);\n" +
+             "ox = E * random(-1, 1);\n" +
+             "oy = E * random(-1, 1);\n" +
+             "orr = E * random(-1, 1);\n";
+    } else {
+        // decay : secousse amortie (comme Impact v0.6)
+        s += "ox = E * Math.sin(" + T + " * f * tt + px);\n" +
+             "oy = E * Math.sin(" + T + " * f * 1.17 * tt + py);\n" +
+             "orr = E * Math.sin(" + T + " * f * 0.8 * tt + pr);\n";
+    }
+    if (pattern !== "heartbeat") { s += "oz = 0.5 * (ox + oy);\n"; }
+    return s;
+};
+
+Y.prim.def("shake", {
+    label: "Secousse", fx: ["ADBE Tile", "ADBE Geometry2"], cost: 1, hosts: "any adj layer cut clip new", main: "amp",
+    params: {
+        pattern: ["e", "decay", ["decay", "wiggle", "bursts", "jumps", "rumble", "roll", "recoil", "heartbeat", "quake", "drunk", "step"]],
+        axis: ["e", "xy", ["xy", "x", "y", "diag", "rot"]],
+        amp: ["n", 24, 0, 400, "k"], rot: ["n", 0, 0, 45, "k"], freq: ["n", 11, 0.05, 40], zoom: ["n", 0, 0, 60, "k"],
+        blur: ["n", 180, 0, 360], tile: ["n", 140, 0, 300], seed: ["n", 0, 0, 999]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, ax = V("axis"), loop = I.drive === "loop" || I.drive === "static";
+        var tr, A = Y.rx.num(I, s, "amp"), head, R, Z;
+        Y.rx.tile(I, V("tile"));
+        tr = Y.rx.transform(I, "Shake", V("blur"));
+        head = Y.rx.pre(I) + Y.rx.envCode(I, s) + "var f = " + Y.rx.num(I, s, "freq") + ";\n" + Y.pm.unit(V("pattern"), V("seed"), loop);
+        if (ax !== "rot") {
+            Y.rx.setx(I, tr, Y.shake.TR.pos, head + "var a = " + A + ";\n" +
+                (ax === "x" ? "[value[0] + a * ox, value[1]];" : ax === "y" ? "[value[0], value[1] + a * oy];" :
+                 ax === "diag" ? "[value[0] + a * ox, value[1] + a * ox];" : "[value[0] + a * ox, value[1] + a * oy];"));
+        }
+        if (V("rot") > 0 || ax === "rot" || V("pattern") === "roll") {
+            R = V("rot") > 0 ? Y.rx.num(I, s, "rot") : "(" + A + " / 10)";
+            Y.rx.setx(I, tr, Y.shake.TR.rot, head + "value + " + R + " * orr;");
+        }
+        if (V("zoom") > 0) {
+            Z = Y.rx.num(I, s, "zoom");
+            Y.rx.setx(I, tr, Y.shake.TR.scale, head + "value + " + Z + " * oz;");
+        }
+    }
+});
+
+// Twitch : sauts al\u00e9atoires image par image, graine commune \u00e0 tous les canaux (sauts synchronis\u00e9s).
+Y.pm.pick = function (salt) {
+    return "var v = 0;\n" +
+        "if (EP > 0.001) { seedRandom(sd * 131 + fr * 7 + " + salt + ", true); if (random() < DENS / 100) { v = random(-1, 1); } }\n";
+};
+Y.prim.def("twitch", {
+    label: "Densite", fx: ["ADBE Tile", "ADBE Geometry2", "ADBE Exposure2", "ADBE Box Blur2", "ADBE CHANNEL MIXER"], cost: 1,
+    hosts: "any adj layer cut clip", main: "density",
+    params: {
+        channels: ["l", ["scale"], ["scale", "slide", "slidey", "rot", "skew", "light", "blur", "rgb"]],
+        density: ["n", 55, 0, 100], scale: ["n", 14, 0, 100, "k"], slide: ["n", 40, 0, 400, "k"], rot: ["n", 6, 0, 90, "k"],
+        skew: ["n", 12, 0, 60, "k"], light: ["n", 1.4, 0, 5, "k"], blur: ["n", 14, 0, 100, "k"], rgb: ["n", 10, 0, 80, "k"]
+    },
+    install: function (I, s) {
+        var ch = Y.rx.val(I, s, "channels"), has = function (x) { return Y.u.has(ch, x); }, tr = null, head, ex, bb, src, J;
+        head = Y.rx.pre(I) + Y.rx.envCode(I, s) + "var DENS = " + Y.rx.num(I, s, "density") + ";\n";
+        if (has("scale") || has("slide") || has("slidey") || has("rot") || has("skew")) {
+            Y.rx.tile(I, 150);
+            tr = Y.rx.transform(I, "Twitch", 180);
+        }
+        if (has("scale")) {
+            Y.rx.setx(I, tr, Y.shake.TR.scale, head + Y.pm.pick(1) + "value + " + Y.rx.num(I, s, "scale") + " * v * EP;");
+            Y.rx.setx(I, tr, Y.shake.TR.anchor, head + Y.pm.pick(1) +
+                "seedRandom(sd * 17 + fr, true);\n(v != 0) ? [value[0] + random(-0.2, 0.2) * thisComp.width, value[1] + random(-0.2, 0.2) * thisComp.height] : value;");
+        }
+        if (has("slide") || has("slidey")) {
+            Y.rx.setx(I, tr, Y.shake.TR.pos, head + Y.pm.pick(2) + "var w = v;\n" + Y.pm.pick(5) +
+                "[value[0] + " + (has("slide") ? Y.rx.num(I, s, "slide") + " * w * EP" : "0") + ", value[1] + " + (has("slidey") ? Y.rx.num(I, s, "slide") + " * v * EP" : "0") + "];");
+        }
+        if (has("rot")) { Y.rx.setx(I, tr, Y.shake.TR.rot, head + Y.pm.pick(6) + "value + " + Y.rx.num(I, s, "rot") + " * v * EP;"); }
+        if (has("skew")) { Y.rx.setx(I, tr, ["ADBE Geometry2-0005", "Skew"], head + Y.pm.pick(8) + "value + " + Y.rx.num(I, s, "skew") + " * v * EP;"); }
+        if (has("light")) {
+            ex = Y.rx.add(I, Y.FX.expo, /^exposure$/i, "Exposure");
+            Y.rx.setx(I, ex, Y.FX.expoV, head + Y.pm.pick(3) + "value + " + Y.rx.num(I, s, "light") + " * v * EP;");
+        }
+        if (has("blur")) {
+            bb = Y.rx.add(I, Y.FX.boxBlur, /fast box blur/i, "Blur");
+            Y.rx.setx(I, bb, Y.FX.boxR, head + Y.pm.pick(4) + Y.rx.num(I, s, "blur") + " * Math.abs(v) * EP;");
+        }
+        if (has("rgb")) {
+            J = Y.rx.child(I, I.L);
+            J.src = Y.kit.layerRef(I.M.name);
+            Y.pp.ghosts(J, s, "h", Y.rx.pre(J) + Y.rx.envCode(J, s) + "var DENS = " + Y.rx.num(J, s, "density") + ";\n" + Y.pm.pick(2) +
+                "var off = " + Y.rx.num(J, s, "rgb") + " * Math.abs(v) * EP;");
+        }
+    }
+});
+
+Y.prim.def("punch", {
+    label: "Punch", fx: ["ADBE Tile", "ADBE Geometry2"], cost: 1, hosts: "any adj layer cut clip new", main: "amount",
+    params: { channel: ["e", "scale", ["scale", "rot", "posx", "posy"]], amount: ["n", 20, -200, 400, "k"], blur: ["n", 180, 0, 360] },
+    install: function (I, s) {
+        var ch = Y.rx.val(I, s, "channel"), amt = Y.rx.val(I, s, "amount"), tr, a = Y.rx.amt(I, s, "amount"), head = Y.rx.expr(I, s, "");
+        if (ch !== "scale" || (typeof amt === "number" && amt < 0)) { Y.rx.tile(I, 160); }
+        tr = Y.rx.transform(I, "Punch", Y.rx.val(I, s, "blur"));
+        if (ch === "scale") { Y.rx.setx(I, tr, Y.shake.TR.scale, head + "value + " + a + ";"); }
+        else if (ch === "rot") { Y.rx.setx(I, tr, Y.shake.TR.rot, head + "value + " + a + ";"); }
+        else if (ch === "posx") { Y.rx.setx(I, tr, Y.shake.TR.pos, head + "[value[0] + " + a + ", value[1]];"); }
+        else { Y.rx.setx(I, tr, Y.shake.TR.pos, head + "[value[0], value[1] + " + a + "];"); }
+    }
+});
+
+// Drift : mouvement lent (push, pull, pan, rotation, dutch). En continu : sur toute la dur\u00e9e du calque.
+Y.prim.def("drift", {
+    label: "Derive", fx: ["ADBE Tile", "ADBE Geometry2"], cost: 1, hosts: "any adj layer clip new", main: "amount",
+    params: { kind: ["e", "push", ["push", "pull", "panx", "pany", "rot", "dutch"]], amount: ["n", 12, -400, 400, "k"] },
+    install: function (I, s) {
+        var k = Y.rx.val(I, s, "kind"), tr, A = Y.rx.num(I, s, "amount"), st = s, head;
+        if (!s.env && I.drive !== "loop" && I.drive !== "static") { st = { p: s.p, env: { shape: "ramp" } }; }
+        head = Y.rx.pre(I) + Y.rx.envCode(I, st) +
+            (I.drive === "loop" || I.drive === "static" ? "var G = yfxBez(Math.max(0, Math.min(1, (time - LAY.inPoint) / Math.max(fd, LAY.outPoint - LAY.inPoint))), 0.45, 0, 0.55, 1);\n" : "var G = E;\n") +
+            "var A = " + A + ";\n";
+        if (k !== "push" && k !== "pull") { Y.rx.tile(I, 160); }
+        tr = Y.rx.transform(I, "Drift", 90);
+        if (k === "push") { Y.rx.setx(I, tr, Y.shake.TR.scale, head + "value + A * G;"); }
+        else if (k === "pull") { Y.rx.setx(I, tr, Y.shake.TR.scale, head + "value + A * (1 - G);"); }
+        else if (k === "panx") { Y.rx.setx(I, tr, Y.shake.TR.pos, head + "[value[0] + A * (G - 0.5), value[1]];"); }
+        else if (k === "pany") { Y.rx.setx(I, tr, Y.shake.TR.pos, head + "[value[0], value[1] + A * (G - 0.5)];"); }
+        else if (k === "rot") { Y.rx.setx(I, tr, Y.shake.TR.rot, head + "value + A * G;"); }
+        else {
+            Y.rx.setx(I, tr, Y.shake.TR.rot, head + "value + A * G;");
+            Y.rx.setx(I, tr, Y.shake.TR.scale, head + "value + Math.abs(A) * 0.9 * G;");
+        }
+    }
+});
+
+Y.prim.def("stretch", {
+    label: "Etirement", fx: ["ADBE Tile", "ADBE Geometry2"], cost: 1, hosts: "any adj layer cut clip", main: "amount",
+    params: { axis: ["e", "x", ["x", "y"]], amount: ["n", 60, -90, 400, "k"], skew: ["n", 0, -60, 60, "k"], blur: ["n", 270, 0, 360] },
+    install: function (I, s) {
+        var tr, head = Y.rx.expr(I, s, "");
+        Y.rx.tile(I, 200);
+        tr = Y.rx.transform(I, "Stretch", Y.rx.val(I, s, "blur"));
+        Y.rx.set(I, tr, Y.shake.TR.uniform, 0);
+        Y.rx.setx(I, tr, Y.rx.val(I, s, "axis") === "x" ? Y.shake.TR.scaleW : Y.shake.TR.scale, head + "value + " + Y.rx.amt(I, s, "amount") + ";");
+        if (Y.rx.val(I, s, "skew") !== 0) { Y.rx.setx(I, tr, ["ADBE Geometry2-0005", "Skew"], head + "value + " + Y.rx.amt(I, s, "skew") + ";"); }
+    }
+});
+
+Y.prim.def("flip", {
+    label: "Flip", fx: ["ADBE Geometry2"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { axis: ["e", "h", ["h", "v", "rot"]] },
+    install: function (I, s) {
+        var ax = Y.rx.val(I, s, "axis"), st = s.env ? s : { p: s.p, env: { shape: "hold" } }, tr, head = Y.rx.expr(I, st, "");
+        tr = Y.rx.transform(I, "Flip", 0);
+        if (ax === "rot") { Y.rx.setx(I, tr, Y.shake.TR.rot, head + "value + ((EP > 0.5) ? 180 : 0);"); return; }
+        Y.rx.set(I, tr, Y.shake.TR.uniform, 0);
+        Y.rx.setx(I, tr, ax === "h" ? Y.shake.TR.scaleW : Y.shake.TR.scale, head + "(EP > 0.5) ? -value : value;");
+    }
+});
+
+
+// ---------------------------------------------------------------- temps
+// Time Remapping : chaque preset de vitesse ajoute un \u00ab terme \u00bb dans l'expression combin\u00e9e du clip (Y.speed.expr).
+// Forme m\u00e9moris\u00e9e dans le r\u00e9glage <base>_Forme (lu au moment o\u00f9 l'expression est r\u00e9\u00e9crite).
+Y.pm.SPEED = ["velocity", "slowmo", "speedup", "freeze", "rewind", "stutter", "boomerang", "steps", "ramp", "reverse"];
+
+Y.pm.speedTerms = function (L) {
+    var fx = Y.p.parade(L), i, nm, base, shape, s = "", C = function (k) { return Y.kit.C("", base + "_" + k); };
+    for (i = 1; i <= fx.numProperties; i++) {
+        nm = fx.property(i).name;
+        if (!/_Forme$/.test(nm)) { continue; }
+        base = nm.substr(0, nm.length - 6);
+        shape = Math.round(Number(fx.property(i).property(1).value));
+        s += "  if (cm == \"" + Y.x.esc(base) + "\") {\n" +
+             "    var Db = Math.max(1, " + C("Duree") + ") * fd, kk = " + C("Intensite") + " / 100, dt = time - t0;\n" +
+             "    var fa = 1 + (" + C("Rapide") + " / 100 - 1) * kk, sl = 1 + (" + C("Lent") + " / 100 - 1) * kk;\n" +
+             "    var p1b = " + C("CourbeP1") + ", p2b = " + C("CourbeP2") + ", cb = Math.max(1, " + C("Bloc") + ") * fd, rp = Math.max(1, Math.round(" + C("Repete") + "));\n";
+        if (shape === 1) {
+            s += "    var tB = Math.min(time, t0 + Db);\n" +
+                 "    for (var tf = t0 - Db; tf < tB; tf += fd) {\n" +
+                 "      var uu = Math.min(1, Math.abs(tf + fd / 2 - t0) / Db), sp = sl + (fa - sl) * yfxCurve(uu, p1b, p2b);\n" +
+                 "      if (uu > 0.85) { sp = sp + (1 - sp) * (uu - 0.85) / 0.15; }\n" +
+                 "      src += (sp - 1) * Math.min(fd, tB - tf);\n" +
+                 "    }\n";
+        } else if (shape === 2) { s += "    if (dt > 0) { src += (sl - 1) * Math.min(dt, Db); }\n"; }
+        else if (shape === 3) { s += "    if (dt > 0) { src += (fa - 1) * Math.min(dt, Db); }\n"; }
+        else if (shape === 4) { s += "    if (dt > 0) { src -= Math.min(Db, dt); }\n"; }
+        else if (shape === 5) { s += "    if (dt > 0) { src += (-fa - 1) * Math.min(Db, dt); }\n"; }
+        else if (shape === 6) { s += "    if (dt > 0) { src -= (dt < cb * rp) ? dt - (dt % cb) : cb * (rp - 1); }\n"; }
+        else if (shape === 7) { s += "    if (dt > Db / 2) { src -= (dt < Db) ? 2 * (dt - Db / 2) : Db; }\n"; }
+        else if (shape === 8) { s += "    if (dt > 0 && dt < Db) { src -= dt % cb; }\n"; }
+        else if (shape === 9) {
+            s += "    var tA = t0 - Db, tC = Math.min(time, t0);\n" +
+                 "    for (var tg = tA; tg < tC; tg += fd) {\n" +
+                 "      var sq = sl + (1 - sl) * yfxCurve((tg + fd / 2 - tA) / Db, p1b, p2b);\n" +
+                 "      src += (sq - 1) * Math.min(fd, tC - tg);\n" +
+                 "    }\n";
+        } else { s += "    if (dt > 0) { src += -2 * Math.min(dt, Db); }\n"; }
+        s += "  }\n";
+    }
+    return s;
+};
+
+Y.prim.def("timeRemap", {
+    label: "Vitesse", fx: [], cost: 2, hosts: "clip", main: null,
+    params: {
+        shape: ["e", "velocity", Y.pm.SPEED], fast: ["n", 220, 100, 1000], slow: ["n", 25, 1, 100],
+        repeat: ["n", 3, 1, 12], chunk: ["n", 4, 1, 30], pixel: ["b", true]
+    },
+    install: function (I, s) {
+        var L = I.L, V = function (k) { return Y.rx.val(I, s, k); };
+        if (!L.canSetTimeRemapEnabled) { Y.fail("S\u00e9lectionne le clip (footage ou pr\u00e9comp) : ce preset utilise le Time Remapping."); }
+        if (!Y.p.findEffect(L, I.base + "_Forme")) {
+            Y.ctl.add(L, "slider", I.base + "_Forme", Y.u.idx(Y.pm.SPEED, V("shape")) + 1);
+            Y.ctl.add(L, "slider", I.base + "_Rapide", V("fast"));
+            Y.ctl.add(L, "slider", I.base + "_Lent", V("slow"));
+            Y.ctl.add(L, "slider", I.base + "_Repete", V("repeat"));
+            Y.ctl.add(L, "slider", I.base + "_Bloc", V("chunk"));
+        }
+        if (!L.timeRemapEnabled) { L.timeRemapEnabled = true; }
+        if (V("pixel")) {
+            try { L.frameBlendingType = FrameBlendingType.PIXEL_MOTION; I.comp.frameBlending = true; } catch (e) {}
+        }
+        Y.x.set(L.property("ADBE Time Remapping"), Y.speed.expr(L));
+    }
+});
+
+Y.prim.def("posterizeTime", {
+    label: "Cadence", fx: ["ADBE Posterize Time"], cost: 1, hosts: "any adj layer cut clip", main: "fps",
+    params: { fps: ["n", 12, 1, 60] },
+    install: function (I, s) {
+        var pt = Y.rx.add(I, Y.FX.post, /posterize time/i, "Posterize");
+        Y.rx.setx(I, pt, Y.FX.postRate, I.drive === "loop" || I.drive === "static" ? Y.rx.expr(I, s, Y.rx.num(I, s, "fps") + ";") :
+            Y.rx.expr(I, s, "(EP > 0.001) ? " + Y.rx.num(I, s, "fps") + " : 1 / fd;"));
+    }
+});
+
+Y.prim.def("echo", {
+    label: "Echos", fx: ["ADBE Echo"], cost: 4, hosts: "any adj layer clip", main: "count",
+    params: {
+        time: ["n", -2, -30, 30], count: ["n", 6, 1, 30], decay: ["n", 0.7, 0, 1],
+        mode: ["e", "add", ["add", "max", "min", "screen", "behind", "front", "blend"]]
+    },
+    install: function (I, s) {
+        var ec = Y.rx.add(I, ["ADBE Echo"], /^echo$/i, "Echo"), modes = ["add", "max", "min", "screen", "behind", "front", "blend"];
+        Y.rx.set(I, ec, ["ADBE Echo-0001", "Echo Time (seconds)"], Y.rx.val(I, s, "time") / I.c.fps);
+        Y.rx.set(I, ec, ["ADBE Echo-0004", "Decay"], Y.rx.val(I, s, "decay"));
+        Y.rx.set(I, ec, ["ADBE Echo-0005", "Echo Operator"], Y.u.idx(modes, Y.rx.val(I, s, "mode")) + 1);
+        Y.rx.setx(I, ec, ["ADBE Echo-0002", "Number Of Echoes"], Y.rx.expr(I, s, "Math.round(" + Y.rx.num(I, s, "count") + " * EP);"));
+    }
+});
+
+
+// ---------------------------------------------------------------- flou
+Y.prim.def("dirBlur", {
+    label: "Flou", fx: ["ADBE Motion Blur"], cost: 2, hosts: "any adj layer cut clip", main: "length",
+    params: { angle: ["n", 90, -360, 360], length: ["n", 60, 0, 600, "k"] },
+    install: function (I, s) {
+        var db = Y.rx.add(I, Y.FX.dirBlur, /directional blur/i, "DirBlur");
+        Y.rx.set(I, db, Y.FX.dirAngle, Y.rx.val(I, s, "angle"));
+        Y.rx.setx(I, db, Y.FX.dirLen, Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "length", true) + ");"));
+    }
+});
+
+Y.prim.def("radialBlur", {
+    label: "Flou", fx: ["CC Radial Fast Blur", "ADBE Radial Blur"], cost: 2, hosts: "any adj layer cut clip", main: "amount",
+    params: { type: ["e", "zoom", ["zoom", "spin"]], amount: ["n", 40, 0, 100, "k"] },
+    install: function (I, s) {
+        var rb, body = "Math.max(0, Math.min(100, " + Y.rx.amt(I, s, "amount", true) + "));";
+        if (Y.rx.val(I, s, "type") === "spin") {
+            rb = Y.rx.add(I, Y.FX.spin, /^radial blur$/i, "Spin");
+            Y.rx.set(I, rb, Y.FX.spinType, 1);
+            Y.rx.setx(I, rb, Y.FX.spinAmt, Y.rx.expr(I, s, body));
+        } else {
+            rb = Y.rx.add(I, Y.FX.radial, /radial (fast )?blur/i, "Zoom");
+            Y.rx.setx(I, rb, ["CC Radial Fast Blur-0002", "Amount"], Y.rx.expr(I, s, body));
+        }
+    }
+});
+
+Y.prim.def("blur", {
+    label: "Flou", fx: ["ADBE Box Blur2", "ADBE Gaussian Blur 2"], cost: 2, hosts: "any adj layer cut clip new", main: "radius",
+    params: { kind: ["e", "gauss", ["box", "gauss"]], radius: ["n", 12, 0, 300, "k"], dims: ["e", "both", ["both", "h", "v"]] },
+    install: function (I, s) {
+        var d = Y.u.idx(["both", "h", "v"], Y.rx.val(I, s, "dims")) + 1, b, body = "Math.max(0, " + Y.rx.amt(I, s, "radius", true) + ");";
+        if (Y.rx.val(I, s, "kind") === "box") {
+            b = Y.rx.add(I, Y.FX.boxBlur, /fast box blur/i, "Blur");
+            Y.rx.set(I, b, ["ADBE Box Blur2-0003", "Blur Dimensions"], d);
+            Y.rx.setx(I, b, Y.FX.boxR, Y.rx.expr(I, s, body));
+        } else {
+            b = Y.rx.add(I, ["ADBE Gaussian Blur 2"], /gaussian blur/i, "Gauss");
+            Y.rx.set(I, b, ["ADBE Gaussian Blur 2-0002", "Blur Dimensions"], d);
+            try { Y.rx.set(I, b, ["ADBE Gaussian Blur 2-0003", "Repeat Edge Pixels"], 1); } catch (e) {}
+            Y.rx.setx(I, b, ["ADBE Gaussian Blur 2-0001", "Blurriness"], Y.rx.expr(I, s, body));
+        }
+    }
+});
+// ---- src/47_p_light.jsx ----
+// =====================================================================
+// PRIMITIVES : lumi\u00e8re et couleur.
+// Param\u00e8tres d'effets vis\u00e9s par matchName (ind\u00e9pendant de la langue d'AE), repli sur le nom anglais.
+// Les matchNames de param\u00e8tres marqu\u00e9s (?) sont \u00e0 confirmer par la sonde (R\u00e9glages > Diagnostic > Sonde des effets).
+// =====================================================================
+Y.pl = {};
+
+// Valeur \u00ab neutre + \u00e9cart x intensit\u00e9 x enveloppe \u00bb : un r\u00e9glage revient au neutre quand l'enveloppe retombe.
+Y.pl.dev = function (I, s, name, neutral) {
+    var v = Y.rx.val(I, s, name);
+    if (v && typeof v === "object" && !Y.u.isArray(v)) { return Y.rx.num(I, s, name); }
+    return Y.rx.f(neutral) + " + (" + Y.rx.f(v) + " - " + Y.rx.f(neutral) + ") * K * " + (I.drive === "loop" || I.drive === "static" ? "1" : "E");
+};
+
+Y.prim.def("exposure", {
+    label: "Flash", fx: ["ADBE Exposure2"], cost: 1, hosts: "any adj layer cut clip new", main: "stops",
+    params: { stops: ["n", 1.5, -8, 8, "k"] },
+    install: function (I, s) {
+        var ex = Y.rx.add(I, Y.FX.expo, /^exposure$/i, "Exposure");
+        Y.rx.setx(I, ex, ["ADBE Exposure2-0003", "Exposure"], Y.rx.expr(I, s, "value + " + Y.rx.amt(I, s, "stops") + ";"));
+    }
+});
+
+Y.pl.BLEND = { normal: "NORMAL", add: "ADD", screen: "SCREEN", multiply: "MULTIPLY", difference: "DIFFERENCE", overlay: "OVERLAY",
+               color: "COLOR", softlight: "SOFT_LIGHT", hardlight: "HARD_LIGHT", dodge: "COLOR_DODGE" };
+
+// Aplat de couleur : solide fr\u00e8re avec mode de fusion, opacit\u00e9 pilot\u00e9e par l'enveloppe.
+Y.prim.def("flash", {
+    label: "Opacite", fx: [], cost: 1, hosts: "any adj layer cut clip new", main: "opacity",
+    params: {
+        color: ["c", "#ffffff"], blend: ["e", "normal", ["normal", "add", "screen", "multiply", "difference", "overlay", "color", "softlight", "hardlight", "dodge"]],
+        opacity: ["n", 85, 0, 100, "k"]
+    },
+    install: function (I, s) {
+        var J = Y.rx.sibling(I, "Flash", "solid", Y.rx.val(I, s, "color"), Y.pl.BLEND[Y.rx.val(I, s, "blend")]);
+        Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Opacity"),
+            Y.rx.expr(J, s, "Math.max(0, Math.min(100, " + Y.rx.amt(J, s, "opacity", true) + "));"));
+    }
+});
+
+Y.prim.def("invert", {
+    label: "Inversion", fx: ["ADBE Invert"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { channel: ["e", "rgb", ["rgb", "lightness", "hue", "luma"]] },
+    install: function (I, s) {
+        var J = Y.rx.gate(I, s, "Invert"), iv = Y.rx.add(J, ["ADBE Invert"], /^invert$/i, "Invert"), ch = Y.rx.val(I, s, "channel");
+        Y.rx.set(J, iv, ["ADBE Invert-0001", "Channel"], { rgb: 1, hue: 6, lightness: 7, luma: 10 }[ch] || 1);
+    }
+});
+
+// Lumetri : r\u00e9glages de base. Neutres : 0 sauf Saturation (100).
+Y.pl.LUM = [
+    ["temp", "Temperature", 0], ["tint", "Tint", 0], ["exposure", "Exposure", 0], ["contrast", "Contrast", 0],
+    ["highlights", "Highlights", 0], ["shadows", "Shadows", 0], ["whites", "Whites", 0], ["blacks", "Blacks", 0],
+    ["sat", "Saturation", 100], ["vibrance", "Vibrance", 0], ["faded", "Faded Film", 0], ["sharpen", "Sharpen", 0]
+];
+Y.prim.def("grade", {
+    label: "Etalonnage", fx: ["ADBE Lumetri"], cost: 2, hosts: "any adj layer cut clip", main: null,
+    params: {
+        temp: ["n", 0, -100, 100], tint: ["n", 0, -100, 100], exposure: ["n", 0, -5, 5], contrast: ["n", 0, -100, 100],
+        highlights: ["n", 0, -100, 100], shadows: ["n", 0, -100, 100], whites: ["n", 0, -100, 100], blacks: ["n", 0, -100, 100],
+        sat: ["n", 100, 0, 200], vibrance: ["n", 0, -100, 100], faded: ["n", 0, 0, 100], sharpen: ["n", 0, -100, 100]
+    },
+    install: function (I, s) {
+        var lu = Y.rx.add(I, ["ADBE Lumetri"], /lumetri color/i, "Lumetri"), i, d, head = Y.rx.expr(I, s, "");
+        for (i = 0; i < Y.pl.LUM.length; i++) {
+            d = Y.pl.LUM[i];
+            if (s[d[0]] === undefined || s[d[0]] === d[2]) { continue; }
+            Y.rx.setx(I, lu, [d[1]], head + Y.pl.dev(I, s, d[0], d[2]) + ";");
+        }
+    }
+});
+
+// Levels : valeurs en 0..1 dans la recette ; l'\u00e9chelle d'AE (0..1 ou 0..255) est lue sur l'effet.
+Y.prim.def("levels", {
+    label: "Niveaux", fx: ["ADBE Easy Levels2"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { inBlack: ["n", 0, 0, 1], inWhite: ["n", 1, 0, 1], gamma: ["n", 1, 0.1, 5], outBlack: ["n", 0, 0, 1], outWhite: ["n", 1, 0, 1] },
+    install: function (I, s) {
+        var lv = Y.rx.add(I, ["ADBE Easy Levels2"], /^levels$/i, "Levels"), head = Y.rx.expr(I, s, ""), sc, keys, i, k, nt;
+        keys = [["inBlack", "ADBE Easy Levels2-0003", "Input Black", 0], ["inWhite", "ADBE Easy Levels2-0004", "Input White", 1],
+                ["gamma", "ADBE Easy Levels2-0005", "Gamma", 1], ["outBlack", "ADBE Easy Levels2-0006", "Output Black", 0],
+                ["outWhite", "ADBE Easy Levels2-0007", "Output White", 1]];
+        sc = Number(Y.rx.p(I, lv, ["ADBE Easy Levels2-0004", "Input White"]).value) > 1.5 ? 255 : 1;
+        for (i = 0; i < keys.length; i++) {
+            k = keys[i];
+            if (s[k[0]] === undefined || s[k[0]] === k[3]) { continue; }
+            nt = k[0] === "gamma" ? 1 : sc;
+            Y.rx.setx(I, lv, [k[1], k[2]], head + "(" + Y.pl.dev(I, s, k[0], k[3]) + ") * " + nt + ";");
+        }
+    }
+});
+
+Y.prim.def("hueSat", {
+    label: "Teinte", fx: ["ADBE HUE SATURATION"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: {
+        hue: ["n", 0, -180, 180], sat: ["n", 0, -100, 100], light: ["n", 0, -100, 100],
+        colorize: ["b", false], chue: ["n", 0, 0, 360], csat: ["n", 25, 0, 100], clight: ["n", 0, -100, 100]
+    },
+    install: function (I, s) {
+        var J = Y.rx.val(I, s, "colorize") ? Y.rx.gate(I, s, "Colorize") : I, hs = Y.rx.add(J, ["ADBE HUE SATURATION"], /hue\/saturation/i, "HueSat");
+        var head = Y.rx.expr(J, s, "");
+        if (Y.rx.val(I, s, "colorize")) {
+            Y.rx.set(J, hs, ["ADBE HUE SATURATION-0006", "Colorize"], 1);
+            Y.rx.set(J, hs, ["ADBE HUE SATURATION-0007", "Colorize Hue"], Y.rx.val(I, s, "chue"));
+            Y.rx.set(J, hs, ["ADBE HUE SATURATION-0008", "Colorize Saturation"], Y.rx.val(I, s, "csat"));
+            Y.rx.set(J, hs, ["ADBE HUE SATURATION-0009", "Colorize Lightness"], Y.rx.val(I, s, "clight"));
+            return;
+        }
+        if (s.hue) { Y.rx.setx(J, hs, ["ADBE HUE SATURATION-0003", "Master Hue"], head + Y.pl.dev(J, s, "hue", 0) + ";"); }
+        if (s.sat) { Y.rx.setx(J, hs, ["ADBE HUE SATURATION-0004", "Master Saturation"], head + Y.pl.dev(J, s, "sat", 0) + ";"); }
+        if (s.light) { Y.rx.setx(J, hs, ["ADBE HUE SATURATION-0005", "Master Lightness"], head + Y.pl.dev(J, s, "light", 0) + ";"); }
+    }
+});
+
+// Color Balance : split toning. Chaque bande = [rouge, vert, bleu] en -100..100.
+Y.prim.def("colorBalance", {
+    label: "Balance", fx: ["ADBE Color Balance 2"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { shadows: ["a", [0, 0, 0]], mids: ["a", [0, 0, 0]], highs: ["a", [0, 0, 0]], preserve: ["b", true] },
+    install: function (I, s) {
+        var cb = Y.rx.add(I, ["ADBE Color Balance 2"], /color balance$/i, "Balance"), head = Y.rx.expr(I, s, ""), bands, b, j, v, nm, ch = ["Red", "Green", "Blue"], idx;
+        bands = [["shadows", "Shadow", 1], ["mids", "Midtone", 4], ["highs", "Hilight", 7]];
+        for (b = 0; b < bands.length; b++) {
+            v = Y.rx.val(I, s, bands[b][0]);
+            for (j = 0; j < 3; j++) {
+                if (!v[j]) { continue; }
+                idx = bands[b][2] + j;
+                nm = bands[b][1] + " " + ch[j] + " Balance";
+                Y.rx.setx(I, cb, ["ADBE Color Balance 2-" + Y.u.pad(idx, 4), nm, nm.replace("Hilight", "Highlight")],
+                    head + Y.rx.f(v[j]) + " * K * " + (I.drive === "loop" || I.drive === "static" ? "1" : "E") + ";");
+            }
+        }
+        try { Y.rx.set(I, cb, ["ADBE Color Balance 2-0010", "Preserve Luminosity"], Y.rx.val(I, s, "preserve") ? 1 : 0); } catch (e) {}
+    }
+});
+
+Y.prim.def("duotone", {
+    label: "Bichromie", fx: ["ADBE Tritone"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { shadows: ["c", "#000000"], mids: ["c", "#7f7f7f"], highs: ["c", "#ffffff"], blend: ["n", 0, 0, 100] },
+    install: function (I, s) {
+        var tt = Y.rx.add(I, ["ADBE Tritone"], /tritone/i, "Tritone");
+        Y.rx.set(I, tt, ["ADBE Tritone-0001", "Highlights"], Y.rx.rgba(Y.rx.val(I, s, "highs")));
+        Y.rx.set(I, tt, ["ADBE Tritone-0002", "Midtones"], Y.rx.rgba(Y.rx.val(I, s, "mids")));
+        Y.rx.set(I, tt, ["ADBE Tritone-0003", "Shadows"], Y.rx.rgba(Y.rx.val(I, s, "shadows")));
+        Y.rx.setx(I, tt, ["ADBE Tritone-0004", "Blend With Original"],
+            Y.rx.expr(I, s, "100 - (100 - " + Y.rx.f(Y.rx.val(I, s, "blend")) + ") * Math.min(1, K) * EP;"));
+    }
+});
+
+// Noir et blanc (Tint) : de la d\u00e9saturation partielle au N&B teint\u00e9.
+Y.prim.def("bw", {
+    label: "NoirBlanc", fx: ["ADBE Tint"], cost: 1, hosts: "any adj layer cut clip", main: "amount",
+    params: { amount: ["n", 100, 0, 100, "k"], tint: ["c", "#ffffff"], dark: ["c", "#000000"] },
+    install: function (I, s) {
+        var ti = Y.rx.add(I, Y.FX.tint, /^tint$/i, "Tint");
+        Y.rx.set(I, ti, ["ADBE Tint-0001", "Map Black To"], Y.rx.rgba(Y.rx.val(I, s, "dark")));
+        Y.rx.set(I, ti, ["ADBE Tint-0002", "Map White To"], Y.rx.rgba(Y.rx.val(I, s, "tint")));
+        Y.rx.setx(I, ti, Y.FX.tintAmt, Y.rx.expr(I, s, "Math.max(0, Math.min(100, " + Y.rx.amt(I, s, "amount", true) + "));"));
+    }
+});
+
+Y.prim.def("leaveColor", {
+    label: "Decolore", fx: ["ADBE Leave Color"], cost: 1, hosts: "any adj layer cut clip", main: "amount",
+    params: { color: ["c", "#d00000"], tolerance: ["n", 25, 0, 100], softness: ["n", 15, 0, 100], amount: ["n", 100, 0, 100, "k"] },
+    install: function (I, s) {
+        var lc = Y.rx.add(I, ["ADBE Leave Color"], /leave color/i, "LeaveColor");
+        Y.rx.set(I, lc, ["ADBE Leave Color-0002", "Color To Leave"], Y.rx.rgba(Y.rx.val(I, s, "color")));
+        Y.rx.set(I, lc, ["ADBE Leave Color-0003", "Tolerance"], Y.rx.val(I, s, "tolerance"));
+        Y.rx.set(I, lc, ["ADBE Leave Color-0004", "Edge Softness"], Y.rx.val(I, s, "softness"));
+        try { Y.rx.set(I, lc, ["ADBE Leave Color-0005", "Match Colors"], 2); } catch (e) {}
+        Y.rx.setx(I, lc, ["ADBE Leave Color-0001", "Amount to Decolor"], Y.rx.expr(I, s, "Math.max(0, Math.min(100, " + Y.rx.amt(I, s, "amount", true) + "));"));
+    }
+});
+
+// Glow : 1 \u00e0 3 passes (rayons x1, x3, x8 : imitation d'un deep glow), couleurs A / B optionnelles ; Deep Glow si demand\u00e9 et install\u00e9.
+Y.prim.def("glow", {
+    label: "Glow", fx: ["ADBE Glo2"], cost: 2, hosts: "any adj layer cut clip new text", main: "intensity",
+    params: {
+        threshold: ["n", 60, 0, 100], radius: ["n", 40, 0, 1500, "k"], intensity: ["n", 1, 0, 10, "k"], passes: ["n", 1, 1, 3],
+        colorA: ["c", "#ffffff"], colorB: ["c", "#ffffff"], tinted: ["b", false], deep: ["b", false]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, deep = V("deep") ? Y.fx.search(/deep\s*glow/i) : [], n, i, gl, mult = [1, 3, 8], imul = [1, 0.6, 0.35];
+        if (deep.length) {
+            I.lastFx = deep[0].match;
+            Y.p.addEffect(I.L, deep[0].match, I.base + "_DeepGlow");
+            return;
+        }
+        n = Math.max(1, Math.min(3, Math.round(V("passes"))));
+        for (i = 0; i < n; i++) {
+            gl = Y.rx.add(I, Y.FX.glow, /^glow$/i, "Glow");
+            Y.rx.set(I, gl, Y.FX.glowThr, V("threshold"));
+            Y.rx.setx(I, gl, Y.FX.glowRad, Y.rx.expr(I, s, Y.rx.num(I, s, "radius") + " * " + mult[i] + ";"));
+            Y.rx.setx(I, gl, Y.FX.glowInt, Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "intensity", true) + " * " + imul[i] + ");"));
+            if (V("tinted")) {
+                Y.rx.set(I, gl, ["ADBE Glo2-0007", "Glow Colors"], 2);
+                Y.rx.set(I, gl, ["ADBE Glo2-0012", "Color A"], Y.rx.rgba(V("colorA")));
+                Y.rx.set(I, gl, ["ADBE Glo2-0013", "Color B"], Y.rx.rgba(V("colorB")));
+            }
+        }
+    }
+});
+
+Y.prim.def("rays", {
+    label: "Rayons", fx: ["CC Light Rays"], cost: 2, hosts: "any adj layer cut clip", main: "intensity",
+    params: { intensity: ["n", 60, 0, 600, "k"], radius: ["n", 40, 0, 400], center: ["e", "center", ["center", "top", "bottom"]] },
+    install: function (I, s) {
+        var r = Y.rx.add(I, ["CC Light Rays"], /light rays/i, "Rays"), w = I.L.width || I.comp.width, h = I.L.height || I.comp.height, c = Y.rx.val(I, s, "center");
+        Y.rx.set(I, r, ["CC Light Rays-0002", "Center"], [w / 2, c === "top" ? h * 0.15 : c === "bottom" ? h * 0.85 : h / 2]);
+        Y.rx.set(I, r, ["CC Light Rays-0003", "Radius"], Y.rx.val(I, s, "radius"));
+        Y.rx.setx(I, r, ["CC Light Rays-0001", "Intensity"], Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "intensity", true) + ");"));
+    }
+});
+
+Y.prim.def("flare", {
+    label: "Flare", fx: ["ADBE Lens Flare"], cost: 2, hosts: "any adj layer cut clip", main: "brightness",
+    params: { lens: ["e", "zoom", ["zoom", "35", "105"]], brightness: ["n", 100, 0, 300, "k"], path: ["e", "sweep", ["sweep", "static", "burst"]] },
+    install: function (I, s) {
+        var fl = Y.rx.add(I, ["ADBE Lens Flare"], /lens flare/i, "Flare"), path = Y.rx.val(I, s, "path"), loop = I.drive === "loop" || I.drive === "static";
+        var w = I.L.width || I.comp.width, h = I.L.height || I.comp.height, g;
+        Y.rx.set(I, fl, ["ADBE Lens Flare-0003", "Lens Type"], { zoom: 1, "35": 2, "105": 3 }[Y.rx.val(I, s, "lens")] || 1);
+        if (path === "static") { Y.rx.set(I, fl, ["ADBE Lens Flare-0001", "Flare Center"], [w * 0.75, h * 0.2]); }
+        else {
+            g = loop ? "Math.max(0, Math.min(1, (time - LAY.inPoint) / D))" : (path === "burst" ? "0.5" : "Math.max(0, Math.min(1, u))");
+            Y.rx.setx(I, fl, ["ADBE Lens Flare-0001", "Flare Center"], Y.rx.expr(I, s, "var g = " + g + ";\n[" + Y.rx.f(w * 0.08) + " + " + Y.rx.f(w * 0.84) + " * g, " + Y.rx.f(h * 0.3) + " - " + Y.rx.f(h * 0.12) + " * g];"));
+        }
+        Y.rx.setx(I, fl, ["ADBE Lens Flare-0002", "Flare Brightness"], Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "brightness", true) + ");"));
+    }
+});
+
+// Fuite de lumi\u00e8re g\u00e9n\u00e9r\u00e9e : solide noir en Screen (Fractal Noise + Tritone), sans fichier externe.
+Y.pl.FN = {
+    noiseType: ["ADBE Fractal Noise-0002", "Noise Type"], contrast: ["ADBE Fractal Noise-0004", "Contrast"], brightness: ["ADBE Fractal Noise-0005", "Brightness"],
+    rotation: ["ADBE Fractal Noise-0008", "Rotation"], uniform: ["ADBE Fractal Noise-0009", "Uniform Scaling"], scale: ["ADBE Fractal Noise-0010", "Scale"],
+    scaleW: ["ADBE Fractal Noise-0011", "Scale Width"], scaleH: ["ADBE Fractal Noise-0012", "Scale Height"], complexity: ["ADBE Fractal Noise-0015", "Complexity"],
+    evolution: ["ADBE Fractal Noise-0023", "Evolution"]
+};
+Y.prim.def("lightLeak", {
+    label: "Fuite", fx: ["ADBE Fractal Noise", "ADBE Tritone"], cost: 2, hosts: "any adj layer cut clip new", main: "amount",
+    params: { colorHi: ["c", "#fff0d1"], colorMid: ["c", "#ff7329"], speed: ["n", 40, 0, 600], scale: ["n", 900, 100, 4000], amount: ["n", 70, 0, 100, "k"] },
+    install: function (I, s) {
+        var J = Y.rx.sibling(I, "Leak", "solid", "#000000", "SCREEN"), fn, tt, V = function (k) { return Y.rx.val(I, s, k); };
+        fn = Y.rx.add(J, ["ADBE Fractal Noise"], /fractal noise/i, "Noise");
+        Y.rx.set(J, fn, Y.pl.FN.contrast, 120);
+        Y.rx.set(J, fn, Y.pl.FN.brightness, -25);
+        Y.rx.set(J, fn, Y.pl.FN.complexity, 2);
+        Y.rx.set(J, fn, Y.pl.FN.scale, V("scale"));
+        Y.rx.setx(J, fn, Y.pl.FN.evolution, "time * " + Y.rx.f(V("speed")) + ";");
+        tt = Y.rx.add(J, ["ADBE Tritone"], /tritone/i, "Couleurs");
+        Y.rx.set(J, tt, ["ADBE Tritone-0001", "Highlights"], Y.rx.rgba(V("colorHi")));
+        Y.rx.set(J, tt, ["ADBE Tritone-0002", "Midtones"], Y.rx.rgba(V("colorMid")));
+        Y.rx.set(J, tt, ["ADBE Tritone-0003", "Shadows"], [0, 0, 0, 1]);
+        Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "Math.max(0, Math.min(100, " + Y.rx.amt(J, s, "amount", true) + "));"));
+    }
+});
+
+// Vignette : solide fr\u00e8re avec un masque ovale soustrait et adouci.
+Y.prim.def("vignette", {
+    label: "Vignette", fx: [], cost: 1, hosts: "any adj layer cut clip new", main: "amount",
+    params: { amount: ["n", 65, 0, 100, "k"], softness: ["n", 45, 0, 100], size: ["n", 56, 20, 120], color: ["c", "#000000"], wide: ["b", false] },
+    install: function (I, s) {
+        var J = Y.rx.sibling(I, "Vignette", "solid", Y.rx.val(I, s, "color")), L = J.L, w = I.comp.width, h = I.comp.height, sz = Y.rx.val(I, s, "size") / 100;
+        var rx = w * sz * (Y.rx.val(I, s, "wide") ? 1.25 : 1), ry = h * sz, cx = w / 2, cy = h / 2, k = 0.5523, sh = new Shape(), mi;
+        sh.vertices = [[cx, cy - ry], [cx + rx, cy], [cx, cy + ry], [cx - rx, cy]];
+        sh.inTangents = [[-rx * k, 0], [0, -ry * k], [rx * k, 0], [0, ry * k]];
+        sh.outTangents = [[rx * k, 0], [0, ry * k], [-rx * k, 0], [0, -ry * k]];
+        sh.closed = true;
+        mi = L.property("ADBE Mask Parade").addProperty("ADBE Mask Atom").propertyIndex;
+        L.property("ADBE Mask Parade").property(mi).property("ADBE Mask Shape").setValue(sh);
+        L.property("ADBE Mask Parade").property(mi).maskMode = MaskMode.SUBTRACT;
+        L.property("ADBE Mask Parade").property(mi).property("ADBE Mask Feather").setValue([w * Y.rx.val(I, s, "softness") / 100, w * Y.rx.val(I, s, "softness") / 100]);
+        Y.x.set(L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "Math.max(0, Math.min(100, " + Y.rx.amt(J, s, "amount", true) + "));"));
+    }
+});
+
+Y.prim.def("sharpen", {
+    label: "Nettete", fx: ["ADBE Unsharp Mask2"], cost: 1, hosts: "any adj layer clip", main: "amount",
+    params: { amount: ["n", 60, 0, 500, "k"], radius: ["n", 1.2, 0.1, 20] },
+    install: function (I, s) {
+        var um = Y.rx.add(I, ["ADBE Unsharp Mask2"], /unsharp mask/i, "Sharpen");
+        Y.rx.set(I, um, ["ADBE Unsharp Mask2-0002", "Radius"], Y.rx.val(I, s, "radius"));
+        Y.rx.setx(I, um, ["ADBE Unsharp Mask2-0001", "Amount"], Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "amount", true) + ");"));
+    }
+});
+// ---- src/48_p_distort.jsx ----
+// =====================================================================
+// PRIMITIVES : distorsion et num\u00e9rique.
+// =====================================================================
+Y.pp = {};
+
+// \u00c9cart RGB natif (comme v0.6) : 2 calques d'ajustement rouge seul / bleu seul (Channel Mixer) en mode \u00c9claircir,
+// d\u00e9cal\u00e9s selon l'axe. offCode d\u00e9finit la variable "off" (pixels), en lisant les r\u00e9glages du ma\u00eetre (J.src).
+Y.pp.ghosts = function (J, s, axis, offCode) {
+    var M = J.M, defs = [["R", 1, [["ADBE CHANNEL MIXER-0006", "Green-Green"], ["ADBE CHANNEL MIXER-0011", "Blue-Blue"]]],
+                        ["B", -1, [["ADBE CHANNEL MIXER-0001", "Red-Red"], ["ADBE CHANNEL MIXER-0006", "Green-Green"]]]];
+    var i, j, L, cm, tn, K, d, move;
+    for (i = 0; i < defs.length; i++) {
+        L = Y.l.addSolid(J.comp, Y.kit.freeName(J.comp, J.base + "_RGB_" + defs[i][0]), [1, 1, 1], "adj", { adjustment: true, inPoint: M.inPoint, outPoint: M.outPoint });
+        if (M.adjustmentLayer) { L.moveAfter(M); } else { L.moveBefore(M); }
+        L.blendingMode = BlendingMode.LIGHTEN;
+        K = Y.rx.child(J, L);
+        K.src = J.src || Y.kit.layerRef(M.name);
+        cm = Y.rx.add(K, ["ADBE CHANNEL MIXER", "ADBE Channel Mixer"], /channel mixer/i, "Canaux");
+        for (j = 0; j < defs[i][2].length; j++) { Y.rx.set(K, cm, defs[i][2][j], 0); }
+        tn = Y.rx.add(K, ["ADBE Geometry2"], /^transform$/i, "Decalage");
+        d = defs[i][1];
+        move = axis === "v" ? "[value[0], value[1] + " + d + " * off]" : axis === "diag" ? "[value[0] + " + d + " * off, value[1] + " + d + " * off * 0.6]" : "[value[0] + " + d + " * off, value[1]]";
+        Y.rx.setx(K, tn, Y.shake.TR.pos, offCode + "\n" + move + ";");
+        J.made.push(L.name);
+    }
+};
+
+Y.prim.def("rgbSplit", {
+    label: "RGB", fx: ["ADBE CHANNEL MIXER", "ADBE Geometry2"], cost: 2, hosts: "any adj layer cut clip", main: "px",
+    params: { px: ["n", 8, 0, 300, "k"], axis: ["e", "h", ["h", "v", "diag"]], breath: ["n", 0, 0, 1] },
+    install: function (I, s) {
+        var J = Y.rx.child(I, I.L);
+        Y.pp.ghosts(J, s, Y.rx.val(I, s, "axis"), Y.rx.expr(J, s, "var off = " + Y.rx.amt(J, s, "px", true) +
+            " * (1 + " + Y.rx.f(Y.rx.val(I, s, "breath")) + " * Math.sin(time * 2.4));"));
+    }
+});
+
+Y.pp.WAVES = ["sine", "square", "triangle", "sawtooth", "circle", "semicircle", "uncircle", "noise", "smoothnoise"];
+Y.prim.def("waveWarp", {
+    label: "Onde", fx: ["ADBE Wave Warp"], cost: 2, hosts: "any adj layer cut clip text", main: "height",
+    params: {
+        type: ["e", "sine", Y.pp.WAVES], height: ["n", 10, 0, 600, "k"], width: ["n", 80, 1, 3000], dir: ["n", 90, 0, 360],
+        speed: ["n", 1, 0, 30], jitter: ["b", false]
+    },
+    install: function (I, s) {
+        var ww = Y.rx.add(I, Y.FX.wave, /wave warp/i, "Wave"), V = function (k) { return Y.rx.val(I, s, k); };
+        Y.rx.set(I, ww, Y.FX.waveType, Y.u.idx(Y.pp.WAVES, V("type")) + 1);
+        Y.rx.set(I, ww, Y.FX.waveDir, V("dir"));
+        Y.rx.set(I, ww, Y.FX.waveSpeed, V("speed"));
+        Y.rx.setx(I, ww, Y.FX.waveH, Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "height", true) + ");"));
+        if (V("jitter")) {
+            Y.rx.setx(I, ww, Y.FX.waveW, "seedRandom(Math.floor(time / thisComp.frameDuration), true);\nrandom(" + Y.rx.f(V("width") * 0.4) + ", " + Y.rx.f(V("width") * 2) + ");");
+            Y.rx.setx(I, ww, Y.FX.wavePhase, "seedRandom(Math.floor(time / thisComp.frameDuration) + 9, true);\nrandom(0, 360);");
+        } else {
+            Y.rx.set(I, ww, Y.FX.waveW, V("width"));
+        }
+    }
+});
+
+Y.prim.def("lens", {
+    label: "Lentille", fx: ["ADBE Optics Compensation", "ADBE Bulge", "ADBE Spherize"], cost: 2, hosts: "any adj layer cut clip", main: "amount",
+    params: { kind: ["e", "fisheye", ["fisheye", "bulge", "sphere"]], amount: ["n", 30, -200, 200, "k"] },
+    install: function (I, s) {
+        var k = Y.rx.val(I, s, "kind"), w = I.L.width || I.comp.width, h = I.L.height || I.comp.height, op, a = Y.rx.amt(I, s, "amount");
+        if (k === "bulge") {
+            op = Y.rx.add(I, ["ADBE Bulge"], /^bulge$/i, "Bulge");
+            Y.rx.set(I, op, ["ADBE Bulge-0001", "Horizontal Radius"], w * 0.45);
+            Y.rx.set(I, op, ["ADBE Bulge-0002", "Vertical Radius"], h * 0.3);
+            Y.rx.setx(I, op, ["ADBE Bulge-0004", "Bulge Height"], Y.rx.expr(I, s, "Math.max(-4, Math.min(4, " + a + " * 0.02));"));
+        } else if (k === "sphere") {
+            op = Y.rx.add(I, ["ADBE Spherize"], /^spherize$/i, "Sphere");
+            Y.rx.setx(I, op, ["ADBE Spherize-0001", "Radius"], Y.rx.expr(I, s, "Math.max(0, " + a + " * " + Y.rx.f(Math.min(w, h) / 200) + ");"));
+        } else {
+            op = Y.rx.add(I, Y.FX.optics, /optics compensation/i, "Lens");
+            Y.rx.set(I, op, ["ADBE Optics Compensation-0002", "Reverse Lens Distortion"], 1);
+            Y.rx.setx(I, op, ["ADBE Optics Compensation-0001", "Field Of View (FOV)"], Y.rx.expr(I, s, "Math.max(0, Math.min(180, " + a + "));"));
+        }
+    }
+});
+
+Y.prim.def("warp", {
+    label: "Distorsion", fx: ["ADBE Turbulent Displace", "ADBE Twirl", "ADBE Ripple"], cost: 2, hosts: "any adj layer cut clip text", main: "amount",
+    params: { kind: ["e", "turbulent", ["turbulent", "twirl", "ripple"]], amount: ["n", 30, -720, 720, "k"], size: ["n", 60, 1, 1000], speed: ["n", 1, 0, 30] },
+    install: function (I, s) {
+        var k = Y.rx.val(I, s, "kind"), fx, V = function (x) { return Y.rx.val(I, s, x); };
+        if (k === "twirl") {
+            fx = Y.rx.add(I, ["ADBE Twirl"], /^twirl$/i, "Twirl");
+            Y.rx.set(I, fx, ["ADBE Twirl-0002", "Twirl Radius"], Math.min(100, V("size")));
+            Y.rx.setx(I, fx, ["ADBE Twirl-0001", "Angle"], Y.rx.expr(I, s, Y.rx.amt(I, s, "amount") + ";"));
+        } else if (k === "ripple") {
+            fx = Y.rx.add(I, ["ADBE Ripple"], /^ripple$/i, "Ripple");
+            Y.rx.set(I, fx, ["ADBE Ripple-0001", "Radius"], Math.min(100, V("size")));
+            Y.rx.set(I, fx, ["ADBE Ripple-0004", "Wave Speed"], V("speed"));
+            Y.rx.setx(I, fx, ["ADBE Ripple-0006", "Wave Height"], Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "amount", true) + ");"));
+        } else {
+            fx = Y.rx.add(I, ["ADBE Turbulent Displace"], /turbulent displace/i, "Turbulent");
+            Y.rx.set(I, fx, ["ADBE Turbulent Displace-0003", "Size"], V("size"));
+            Y.rx.setx(I, fx, ["ADBE Turbulent Displace-0006", "Evolution"], "time * " + Y.rx.f(V("speed") * 360) + ";");
+            Y.rx.setx(I, fx, ["ADBE Turbulent Displace-0002", "Amount"], Y.rx.expr(I, s, "Math.max(0, " + Y.rx.amt(I, s, "amount", true) + ");"));
+        }
+    }
+});
+
+// Glitch de blocs (approximations natives) : shift = tranches d\u00e9cal\u00e9es, mosh = tra\u00een\u00e9e datamosh, sort = coulures verticales.
+// Seules certaines images s'allument (densit\u00e9), comme un vrai glitch.
+Y.prim.def("blocks", {
+    label: "Glitch", fx: ["ADBE Wave Warp", "ADBE Echo", "ADBE Turbulent Displace", "ADBE Motion Blur"], cost: 2, hosts: "any adj layer cut clip", main: "amount",
+    params: { kind: ["e", "shift", ["shift", "mosh", "sort"]], amount: ["n", 60, 0, 600, "k"], size: ["n", 60, 4, 600], density: ["n", 50, 0, 100] },
+    install: function (I, s) {
+        var k = Y.rx.val(I, s, "kind"), V = function (x) { return Y.rx.val(I, s, x); }, gate, ww, ec, td, db;
+        gate = "seedRandom(sd * 53 + fr * 3, true);\nvar on = (EP > 0.001 && random() < " + Y.rx.f(V("density")) + " / 100) ? 1 : 0;\n";
+        if (k === "mosh") {
+            ec = Y.rx.add(I, ["ADBE Echo"], /^echo$/i, "Mosh");
+            Y.rx.set(I, ec, ["ADBE Echo-0001", "Echo Time (seconds)"], -1 / I.c.fps);
+            Y.rx.set(I, ec, ["ADBE Echo-0004", "Decay"], 0.85);
+            Y.rx.set(I, ec, ["ADBE Echo-0005", "Echo Operator"], 5);
+            Y.rx.setx(I, ec, ["ADBE Echo-0002", "Number Of Echoes"], Y.rx.expr(I, s, gate + "on * Math.round(2 + 6 * EP);"));
+            td = Y.rx.add(I, ["ADBE Turbulent Displace"], /turbulent displace/i, "MoshWarp");
+            Y.rx.set(I, td, ["ADBE Turbulent Displace-0003", "Size"], V("size"));
+            Y.rx.setx(I, td, ["ADBE Turbulent Displace-0006", "Evolution"], "time * 900;");
+            Y.rx.setx(I, td, ["ADBE Turbulent Displace-0002", "Amount"], Y.rx.expr(I, s, gate + "on * " + Y.rx.amt(I, s, "amount", true) + ";"));
+            return;
+        }
+        if (k === "sort") {
+            db = Y.rx.add(I, Y.FX.dirBlur, /directional blur/i, "Sort");
+            Y.rx.set(I, db, Y.FX.dirAngle, 0);
+            Y.rx.setx(I, db, Y.FX.dirLen, Y.rx.expr(I, s, gate + "on * 3 * " + Y.rx.amt(I, s, "amount", true) + ";"));
+        }
+        ww = Y.rx.add(I, Y.FX.wave, /wave warp/i, "Blocks");
+        Y.rx.set(I, ww, Y.FX.waveType, k === "sort" ? 4 : 2);
+        Y.rx.set(I, ww, Y.FX.waveDir, k === "sort" ? 90 : 0);
+        Y.rx.set(I, ww, Y.FX.waveSpeed, 0);
+        Y.rx.setx(I, ww, Y.FX.waveH, Y.rx.expr(I, s, gate + "on * " + Y.rx.amt(I, s, "amount", true) + ";"));
+        Y.rx.setx(I, ww, Y.FX.waveW, "seedRandom(Math.floor(time / thisComp.frameDuration), true);\nrandom(" + Y.rx.f(V("size") * 0.5) + ", " + Y.rx.f(V("size") * 3) + ");");
+        Y.rx.setx(I, ww, Y.FX.wavePhase, "seedRandom(Math.floor(time / thisComp.frameDuration) + 9, true);\nrandom(0, 360);");
+    }
+});
+
+Y.prim.def("pixelate", {
+    label: "Blocs", fx: ["ADBE Mosaic"], cost: 1, hosts: "any adj layer cut clip", main: "blocks",
+    params: { blocks: ["n", 24, 2, 400] },
+    install: function (I, s) {
+        var mo = Y.rx.add(I, ["ADBE Mosaic"], /^mosaic$/i, "Mosaic"), B = Y.rx.num(I, s, "blocks"), W = I.comp.width, H = I.comp.height;
+        try { Y.rx.set(I, mo, ["ADBE Mosaic-0003", "Sharp Colors"], 1); } catch (e) {}
+        Y.rx.setx(I, mo, ["ADBE Mosaic-0001", "Horizontal Blocks"], Y.rx.expr(I, s, "var b = " + B + ";\n(EP > 0.001) ? Math.max(2, Math.round(b + (" + W + " - b) * (1 - EP))) : " + W + ";"));
+        Y.rx.setx(I, mo, ["ADBE Mosaic-0002", "Vertical Blocks"], Y.rx.expr(I, s, "var b = " + B + " * " + Y.rx.f(H / W) + ";\n(EP > 0.001) ? Math.max(2, Math.round(b + (" + H + " - b) * (1 - EP))) : " + H + ";"));
+    }
+});
+
+Y.prim.def("posterize", {
+    label: "Aplats", fx: ["ADBE Posterize"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { levels: ["n", 5, 2, 64] },
+    install: function (I, s) {
+        var J = Y.rx.gate(I, s, "Posterize"), po = Y.rx.add(J, ["ADBE Posterize"], /^posterize$/i, "Posterize");
+        Y.rx.set(J, po, ["ADBE Posterize-0001", "Level"], Y.rx.val(I, s, "levels"));
+    }
+});
+
+// Encre : seuil noir et blanc (impact frame) ou contours (BD, en Produit sur l'image).
+Y.prim.def("ink", {
+    label: "Encre", fx: ["ADBE Threshold2", "ADBE Find Edges"], cost: 1, hosts: "any adj layer cut clip", main: null,
+    params: { kind: ["e", "threshold", ["threshold", "edges"]], level: ["n", 128, 0, 255], blend: ["n", 0, 0, 100] },
+    install: function (I, s) {
+        var J, fx, loop = I.drive === "loop" || I.drive === "static";
+        if (Y.rx.val(I, s, "kind") === "edges") {
+            J = Y.rx.sibling(I, "Edges", "adj", null, "MULTIPLY");
+            if (!loop) { Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "100 * EP;")); }
+            fx = Y.rx.add(J, ["ADBE Find Edges"], /find edges/i, "Edges");
+            Y.rx.set(J, fx, ["ADBE Find Edges-0002", "Blend With Original"], Y.rx.val(I, s, "blend"));
+            return;
+        }
+        J = Y.rx.gate(I, s, "Ink");
+        fx = Y.rx.add(J, ["ADBE Threshold2"], /^threshold$/i, "Threshold");
+        Y.rx.set(J, fx, ["ADBE Threshold2-0001", "Level"], Y.rx.val(I, s, "level"));
+    }
+});
+
+// Trame de points : approximation avec CC Ball Action (pas de halftone natif dans AE).
+Y.prim.def("halftone", {
+    label: "Trame", fx: ["CC Ball Action"], cost: 2, hosts: "any adj layer cut clip", main: null,
+    params: { size: ["n", 14, 3, 120] },
+    install: function (I, s) {
+        var J = (I.drive === "loop" || I.drive === "static") ? Y.rx.sibling(I, "Trame", "adj", null, "MULTIPLY") : Y.rx.gate(I, s, "Trame", "MULTIPLY");
+        var b = Y.rx.add(J, ["CC Ball Action"], /ball action/i, "Halftone");
+        Y.rx.set(J, b, ["CC Ball Action-0005", "Grid Spacing"], Y.rx.val(I, s, "size"));
+        try { Y.rx.set(J, b, ["CC Ball Action-0001", "Scatter"], 0); } catch (e) {}
+    }
+});
+
+Y.prim.def("scanlines", {
+    label: "Lignes", fx: ["ADBE Venetian Blinds"], cost: 1, hosts: "any adj layer cut clip new", main: "opacity",
+    params: { spacing: ["n", 4, 2, 80], thickness: ["n", 50, 5, 95], roll: ["n", 0, 0, 600], opacity: ["n", 25, 0, 100, "k"], color: ["c", "#000000"] },
+    install: function (I, s) {
+        var J = Y.rx.sibling(I, "Scan", "solid", Y.rx.val(I, s, "color")), vb, sp = Y.rx.val(I, s, "spacing");
+        vb = Y.rx.add(J, ["ADBE Venetian Blinds"], /venetian blinds/i, "Lignes");
+        Y.rx.set(J, vb, ["ADBE Venetian Blinds-0001", "Transition Completion"], Y.rx.val(I, s, "thickness"));
+        Y.rx.set(J, vb, ["ADBE Venetian Blinds-0003", "Width"], sp);
+        if (Y.rx.val(I, s, "roll") > 0) {
+            Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Position"), "[value[0], value[1] + (time * " + Y.rx.f(Y.rx.val(I, s, "roll")) + ") % " + Y.rx.f(sp * 2) + "];");
+        }
+        Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "Math.max(0, Math.min(100, " + Y.rx.amt(J, s, "opacity", true) + "));"));
+    }
+});
+
+// Grain : solide fr\u00e8re (Fractal Noise) en Incrustation, ou poussi\u00e8re blanche en \u00c9cran.
+Y.prim.def("grain", {
+    label: "Grain", fx: ["ADBE Fractal Noise"], cost: 2, hosts: "any adj layer cut clip new", main: "amount",
+    params: { kind: ["e", "fine", ["fine", "film", "digital", "dust"]], size: ["n", 22, 1, 400], amount: ["n", 35, 0, 100, "k"] },
+    install: function (I, s) {
+        var k = Y.rx.val(I, s, "kind"), dust = k === "dust", J, fn, sz = Y.rx.val(I, s, "size");
+        J = Y.rx.sibling(I, dust ? "Dust" : "Grain", "solid", dust ? "#000000" : "#808080", dust ? "SCREEN" : "OVERLAY");
+        fn = Y.rx.add(J, ["ADBE Fractal Noise"], /fractal noise/i, "Noise");
+        Y.rx.set(J, fn, Y.pl.FN.contrast, { fine: 160, film: 120, digital: 200, dust: 450 }[k]);
+        if (dust) { Y.rx.set(J, fn, Y.pl.FN.brightness, -105); }
+        if (k === "digital") { Y.rx.set(J, fn, Y.pl.FN.noiseType, 1); }
+        Y.rx.set(J, fn, Y.pl.FN.complexity, { fine: 3, film: 6, digital: 1, dust: 2 }[k]);
+        Y.rx.set(J, fn, Y.pl.FN.scale, k === "film" ? sz * 1.8 : k === "digital" ? sz * 0.6 : sz);
+        Y.rx.setx(J, fn, Y.pl.FN.evolution, "time * 2400;");
+        Y.x.set(J.L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "Math.max(0, Math.min(100, " + Y.rx.amt(J, s, "amount", true) + "));"));
+    }
+});
+
+Y.prim.def("mirror", {
+    label: "Miroir", fx: ["ADBE Mirror", "CC Kaleida", "ADBE Polar Coordinates"], cost: 2, hosts: "any adj layer cut clip", main: null,
+    params: { kind: ["e", "mirror", ["mirror", "kaleida", "polar"]], angle: ["n", 90, 0, 360], size: ["n", 30, 1, 400], spin: ["n", 0, -360, 360] },
+    install: function (I, s) {
+        var k = Y.rx.val(I, s, "kind"), J, fx, w = I.L.width || I.comp.width, h = I.L.height || I.comp.height;
+        if (k === "polar") {
+            fx = Y.rx.add(I, ["ADBE Polar Coordinates"], /polar coordinates/i, "Polar");
+            Y.rx.set(I, fx, ["ADBE Polar Coordinates-0002", "Type of Conversion"], 1);
+            Y.rx.setx(I, fx, ["ADBE Polar Coordinates-0001", "Interpolation"], Y.rx.expr(I, s, "100 * EP;"));
+            return;
+        }
+        J = Y.rx.gate(I, s, k === "kaleida" ? "Kaleida" : "Mirror");
+        if (k === "kaleida") {
+            fx = Y.rx.add(J, ["CC Kaleida"], /kaleida/i, "Kaleida");
+            Y.rx.set(J, fx, ["CC Kaleida-0002", "Size"], Y.rx.val(I, s, "size"));
+            if (Y.rx.val(I, s, "spin")) { Y.rx.setx(J, fx, ["CC Kaleida-0004", "Rotation"], "time * " + Y.rx.f(Y.rx.val(I, s, "spin")) + ";"); }
+            return;
+        }
+        fx = Y.rx.add(J, ["ADBE Mirror"], /^mirror$/i, "Mirror");
+        Y.rx.set(J, fx, ["ADBE Mirror-0001", "Reflection Center"], [w / 2, h / 2]);
+        Y.rx.set(J, fx, ["ADBE Mirror-0002", "Reflection Angle"], Y.rx.val(I, s, "angle"));
+    }
+});
+
+// Lignes de vitesse : bruit \u00e9tir\u00e9 (Fractal Noise), pass\u00e9 en coordonn\u00e9es polaires pour la version radiale,
+// luminance -> alpha (Shift Channels) puis couleur (Fill). Trou central adouci (masque).
+Y.prim.def("speedLines", {
+    label: "Lignes", fx: ["ADBE Fractal Noise", "ADBE Polar Coordinates", "ADBE Shift Channels", "ADBE Fill"], cost: 2, hosts: "any adj layer cut clip new", main: "amount",
+    params: {
+        kind: ["e", "radial", ["radial", "horizontal"]], density: ["n", 50, 0, 100], color: ["c", "#ffffff"],
+        amount: ["n", 80, 0, 100, "k"], hole: ["n", 35, 0, 90]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, J = Y.rx.sibling(I, "SpeedLines", "solid", "#000000"), L = J.L, fn, pc, sc, fl, w = I.comp.width, h = I.comp.height, r, k = 0.5523, sh, mi, cx = w / 2, cy = h / 2;
+        fn = Y.rx.add(J, ["ADBE Fractal Noise"], /fractal noise/i, "Noise");
+        Y.rx.set(J, fn, Y.pl.FN.contrast, 420);
+        Y.rx.set(J, fn, Y.pl.FN.brightness, -150 + V("density") * 1.4);
+        Y.rx.set(J, fn, Y.pl.FN.complexity, 1);
+        Y.rx.set(J, fn, Y.pl.FN.uniform, 0);
+        Y.rx.set(J, fn, Y.pl.FN.scaleW, 4);
+        Y.rx.set(J, fn, Y.pl.FN.scaleH, 4000);
+        if (V("kind") === "horizontal") { Y.rx.set(J, fn, Y.pl.FN.rotation, 90); }
+        Y.rx.setx(J, fn, Y.pl.FN.evolution, "time * 1800;");
+        if (V("kind") === "radial") {
+            pc = Y.rx.add(J, ["ADBE Polar Coordinates"], /polar coordinates/i, "Polar");
+            Y.rx.set(J, pc, ["ADBE Polar Coordinates-0001", "Interpolation"], 100);
+            Y.rx.set(J, pc, ["ADBE Polar Coordinates-0002", "Type of Conversion"], 1);
+            r = Math.min(w, h) * V("hole") / 200;
+            if (r > 1) {
+                sh = new Shape();
+                sh.vertices = [[cx, cy - r], [cx + r, cy], [cx, cy + r], [cx - r, cy]];
+                sh.inTangents = [[-r * k, 0], [0, -r * k], [r * k, 0], [0, r * k]];
+                sh.outTangents = [[r * k, 0], [0, r * k], [-r * k, 0], [0, -r * k]];
+                sh.closed = true;
+                mi = L.property("ADBE Mask Parade").addProperty("ADBE Mask Atom").propertyIndex;
+                L.property("ADBE Mask Parade").property(mi).property("ADBE Mask Shape").setValue(sh);
+                L.property("ADBE Mask Parade").property(mi).maskMode = MaskMode.SUBTRACT;
+                L.property("ADBE Mask Parade").property(mi).property("ADBE Mask Feather").setValue([r * 0.8, r * 0.8]);
+            }
+        }
+        sc = Y.rx.add(J, ["ADBE Shift Channels"], /shift channels/i, "Alpha");
+        Y.rx.set(J, sc, ["ADBE Shift Channels-0001", "Take Alpha From"], 5);
+        fl = Y.rx.add(J, ["ADBE Fill"], /^fill$/i, "Couleur");
+        Y.rx.set(J, fl, ["ADBE Fill-0003", "Color"], Y.rx.rgba(V("color")));
+        Y.x.set(L.property("ADBE Transform Group").property("ADBE Opacity"), Y.rx.expr(J, s, "Math.max(0, Math.min(100, " + Y.rx.amt(J, s, "amount", true) + "));"));
+    }
+});
+// ---- src/49_p_text.jsx ----
+// =====================================================================
+// PRIMITIVES : texte (animators + s\u00e9lecteur d'expression, Source Text, styles).
+// R\u00e9glages communs des animations de texte (une fois par instance) : Dur\u00e9e, D\u00e9lai, Mode (entr\u00e9e / sortie / les deux), Courbe.
+// =====================================================================
+Y.pt = {};
+
+Y.pt.needText = function (I) {
+    if (!(I.L instanceof TextLayer)) { Y.fail("Ce preset s'applique \u00e0 un calque texte (T). S\u00e9lectionne-le, ou cr\u00e9e un texte d'abord."); }
+};
+
+Y.pt.ctl = function (I) {
+    if (!I.tc) { I.tc = Y.text.controls(I.L, I.base, I.c, Y.text.DELAY[I.c.by] || 2); }
+    return I.tc;
+};
+
+// Index de la lettre / du mot selon l'ordre de r\u00e9v\u00e9lation.
+Y.pt.order = function (order) {
+    if (order === "reverse") { return "var i = nb - textIndex;\n"; }
+    if (order === "center") { return "var i = Math.abs(textIndex - 1 - (nb - 1) / 2);\n"; }
+    if (order === "edges") { return "var i = (nb - 1) / 2 - Math.abs(textIndex - 1 - (nb - 1) / 2);\n"; }
+    if (order === "random") { return "seedRandom(textIndex * 7 + 3, true);\nvar i = Math.floor(random(0, nb));\n"; }
+    return "var i = textIndex - 1;\n";
+};
+
+// S\u00e9lecteur \u00ab r\u00e9v\u00e9lation \u00bb (100 = cach\u00e9, 0 = pos\u00e9 ; d\u00e9passement possible avec une courbe \u00e0 rebond).
+Y.pt.selector = function (n, order) {
+    var X = Y.x.ctl;
+    return Y.x.LIB_CURVE + "\n" +
+        "var fd = thisComp.frameDuration, nb = textTotal;\n" +
+        "var d = Math.max(1, " + X(n.dur) + ") * fd, dl = Math.max(0, " + X(n.delay) + ") * fd;\n" +
+        "var mode = Math.round(" + X(n.mode) + "), p1 = " + X(n.curve.p1) + ", p2 = " + X(n.curve.p2) + ";\n" +
+        Y.pt.order(order) +
+        "var tin = (time - (thisLayer.inPoint + i * dl)) / d;\n" +
+        "var tout = (time - (thisLayer.outPoint - d - (nb - 1 - i) * dl)) / d;\n" +
+        "var v = 0;\n" +
+        "if (mode == 1 || mode == 3) { v = 100 * (1 - yfxCurve(tin, p1, p2)); }\n" +
+        "if (mode == 2 || mode == 3) { if (tout > 0) { v = 100 * (1 - yfxCurve(1 - tout, p1, p2)); } else if (mode == 2) { v = 0; } }\n" +
+        "[v, v, v];";
+};
+
+Y.prim.def("textReveal", {
+    label: "Revelation", fx: [], cost: 1, hosts: "text new", main: null,
+    params: {
+        scale: ["n", 100, -400, 600], posx: ["n", 0, -3000, 3000, "k"], posy: ["n", 0, -3000, 3000, "k"], rotx: ["n", 0, -720, 720],
+        roty: ["n", 0, -720, 720], rotz: ["n", 0, -720, 720], opacity: ["n", 0, 0, 100], blur: ["n", 0, 0, 300, "k"],
+        tracking: ["n", 0, -300, 600, "k"], skew: ["n", 0, -85, 85], fill: ["c", "#ffffff"],
+        order: ["e", "forward", ["forward", "reverse", "center", "edges", "random"]]
+    },
+    install: function (I, s) {
+        var props = [], k = I.c.intensity, n, has = function (x) { return s[x] !== undefined; }, v;
+        Y.pt.needText(I);
+        n = Y.pt.ctl(I);
+        if (has("scale")) { v = Number(s.scale); props.push({ mn: "ADBE Text Scale 3D", value: [v, v, 100] }); }
+        if (has("posx") || has("posy")) { props.push({ mn: "ADBE Text Position 3D", value: [Number(s.posx || 0) * k, Number(s.posy || 0) * k, 0] }); }
+        if (has("rotx")) { props.push({ mn: "ADBE Text Rotation X", value: Number(s.rotx) }); }
+        if (has("roty")) { props.push({ mn: "ADBE Text Rotation Y", value: Number(s.roty) }); }
+        if (has("rotz")) { props.push({ mn: "ADBE Text Rotation", value: Number(s.rotz) }); }
+        if (has("blur")) { v = Number(s.blur) * k; props.push({ mn: "ADBE Text Blur", value: [v, v] }); }
+        if (has("tracking")) { props.push({ mn: "ADBE Text Tracking Amount", value: Math.round(Number(s.tracking) * k) }); }
+        if (has("skew")) { props.push({ mn: "ADBE Text Skew", value: Number(s.skew) }); }
+        if (has("fill")) { props.push({ mn: "ADBE Text Fill Color", value: Y.rx.rgba(s["fill"]) }); }
+        props.push({ mn: "ADBE Text Opacity", value: Number(Y.rx.val(I, s, "opacity")) });
+        if (has("rotx") || has("roty")) { try { I.L.threeDPerChar = true; } catch (e) {} }
+        Y.text.addAnimator(I.L, I.base, props, Y.pt.selector(n, Y.rx.val(I, s, "order")), I.c.by);
+    }
+});
+
+// Glitch, scramble, flicker : actif pendant l'entr\u00e9e et / ou la sortie (Mode).
+Y.prim.def("textRandom", {
+    label: "Glitch", fx: [], cost: 1, hosts: "text new", main: null,
+    params: { kind: ["e", "glitch", ["glitch", "scramble", "flicker"]], amount: ["n", 16, 0, 300, "k"], color: ["c", "#ff4655"] },
+    install: function (I, s) {
+        var n, C = Y.x.ctl, act, k = Y.rx.val(I, s, "kind");
+        Y.pt.needText(I);
+        n = Y.pt.ctl(I);
+        act = "var fd = thisComp.frameDuration, d = Math.max(1, " + C(n.dur) + ") * fd, mode = Math.round(" + C(n.mode) + ");\n" +
+              "var act = (mode != 2 && time - thisLayer.inPoint < d * 1.5) || (mode != 1 && thisLayer.outPoint - time < d * 1.5);\n" +
+              "var v = 0;\n";
+        if (k === "scramble") {
+            Y.text.addAnimator(I.L, I.base + "_Scramble", [{ mn: "ADBE Text Character Offset", value: 40 }],
+                act + "if (act) { seedRandom(textIndex * 13 + Math.floor(time / fd / 2), true); v = (random() < 0.6) ? random(10, 100) : 0; }\n[v, v, v];", "car");
+        } else if (k === "flicker") {
+            Y.text.addAnimator(I.L, I.base + "_Flicker", [{ mn: "ADBE Text Opacity", value: 0 }],
+                act + "if (act) { seedRandom(textIndex * 19 + Math.floor(time / fd), true); v = (random() < 0.4) ? 100 : 0; }\n[v, v, v];", "car");
+        } else {
+            Y.text.addAnimator(I.L, I.base + "_Glitch", [{ mn: "ADBE Text Position 3D", value: [Y.rx.val(I, s, "amount") * I.c.intensity, 0, 0] }],
+                act + "if (act) { seedRandom(textIndex * 17 + Math.floor(time / fd / 2), true); v = (random() < 0.45) ? random(-100, 100) : 0; }\n[v, v, v];", "car");
+            Y.text.addAnimator(I.L, I.base + "_GlitchCouleur", [{ mn: "ADBE Text Fill Color", value: Y.rx.rgba(Y.rx.val(I, s, "color")) }],
+                act + "if (act) { seedRandom(textIndex * 29 + Math.floor(time / fd / 2), true); v = (random() < 0.3) ? 100 : 0; }\n[v, v, v];", "car");
+        }
+    }
+});
+
+Y.prim.def("typewriter", {
+    label: "Frappe", fx: [], cost: 1, hosts: "text new", main: null,
+    params: { cursor: ["b", true], cursorChar: ["t", "|"] },
+    install: function (I, s) {
+        var st, txt, per, n, X = Y.x.ctl;
+        Y.pt.needText(I);
+        st = I.L.property("ADBE Text Properties").property("ADBE Text Document");
+        txt = String(st.value.text || "");
+        per = Math.max(1, Math.round(I.c.frames / Math.max(1, txt.length)));
+        n = Y.kit.controls(I.L, I.base, I.c, [
+            ["slider", "per", "ImagesParLettre", per],
+            ["checkbox", "cursor", "Curseur", !!Y.rx.val(I, s, "cursor")],
+            ["dropdown", "mode", "Mode", { "in": 1, out: 2, both: 3 }[I.c.dir] || 1, ["Entr\u00e9e", "Sortie", "Entr\u00e9e + sortie"]]
+        ]);
+        Y.x.set(st,
+            "var s = \"\" + value, nb = s.length, fd = thisComp.frameDuration;\n" +
+            "var per = Math.max(0.5, " + X(n.per) + ") * fd, mode = Math.round(" + X(n.mode) + ");\n" +
+            "var shown = nb;\n" +
+            "if (mode != 2) { shown = Math.min(nb, Math.max(0, Math.floor((time - thisLayer.inPoint) / per))); }\n" +
+            "if (mode != 1) { var left = Math.floor((thisLayer.outPoint - time) / per); if (left < nb) { shown = Math.min(shown, Math.max(0, left)); } }\n" +
+            "var cur = \"\";\n" +
+            "if (" + X(n.cursor) + " == 1) { cur = (Math.floor(time / 0.45) % 2 == 0) ? \"" + Y.x.esc(Y.rx.val(I, s, "cursorChar")) + "\" : \" \"; }\n" +
+            "s.substr(0, shown) + cur;");
+    }
+});
+
+Y.prim.def("textWave", {
+    label: "Vague", fx: [], cost: 1, hosts: "text new", main: "amp",
+    params: { amp: ["n", 18, 0, 300, "k"], freq: ["n", 1.2, 0.05, 12], gap: ["n", 0.6, 0, 4], axis: ["e", "y", ["y", "scale", "rot"]] },
+    install: function (I, s) {
+        var A, ax = Y.rx.val(I, s, "axis"), prop, sel;
+        Y.pt.needText(I);
+        A = Y.rx.val(I, s, "amp") * I.c.intensity;
+        prop = ax === "scale" ? { mn: "ADBE Text Scale 3D", value: [100 + A, 100 + A, 100] } :
+               ax === "rot" ? { mn: "ADBE Text Rotation", value: A } : { mn: "ADBE Text Position 3D", value: [0, -A, 0] };
+        sel = "var v = 100 * Math.sin(2 * Math.PI * " + Y.rx.f(Y.rx.val(I, s, "freq")) + " * time + textIndex * " + Y.rx.f(Y.rx.val(I, s, "gap")) + ");\n[v, v, v];";
+        Y.text.addAnimator(I.L, I.base + "_Wave", [prop], sel, I.c.by);
+    }
+});
+
+// Kinetic : un mot par marker du calque texte (sinon tous les \u00ab Dur\u00e9e \u00bb images). highlight = sous-titres TikTok :
+// tous les mots visibles, le mot courant grossit et prend la couleur.
+Y.prim.def("textKinetic", {
+    label: "Kinetic", fx: [], cost: 1, hosts: "text new", main: null,
+    params: { mode: ["e", "word", ["word", "stack", "highlight"]], color: ["c", "#ff4b3e"], scale: ["n", 115, 100, 300] },
+    install: function (I, s) {
+        var n, X = Y.x.ctl, m = Y.rx.val(I, s, "mode"), head, sc = Y.rx.val(I, s, "scale");
+        Y.pt.needText(I);
+        n = Y.pt.ctl(I);
+        head = Y.x.LIB_CURVE + "\n" +
+            "var fd = thisComp.frameDuration, d = Math.max(1, " + X(n.dur) + ") * fd, mm = thisLayer.marker;\n" +
+            "var p1 = " + X(n.curve.p1) + ", p2 = " + X(n.curve.p2) + ";\n";
+        if (m === "highlight") {
+            Y.text.addAnimator(I.L, I.base + "_Mot", [{ mn: "ADBE Text Fill Color", value: Y.rx.rgba(Y.rx.val(I, s, "color")) }, { mn: "ADBE Text Scale 3D", value: [sc, sc, 100] }],
+                head + "var cur = 0;\n" +
+                "if (mm.numKeys > 0) { for (var j = 1; j <= mm.numKeys; j++) { if (mm.key(j).time <= time) { cur = j; } } }\n" +
+                "else { cur = Math.floor((time - thisLayer.inPoint) / d) + 1; }\n" +
+                "var t0 = (mm.numKeys >= cur && cur > 0) ? mm.key(cur).time : thisLayer.inPoint + (cur - 1) * d;\n" +
+                "var v = (textIndex == cur) ? 100 * yfxCurve(Math.min(1, (time - t0) / d), p1, p2) : 0;\n[v, v, v];", "mot");
+            return;
+        }
+        Y.text.addAnimator(I.L, I.base + "_Kinetic",
+            m === "stack" ? [{ mn: "ADBE Text Position 3D", value: [0, 60 * I.c.intensity, 0] }, { mn: "ADBE Text Opacity", value: 0 }] :
+                            [{ mn: "ADBE Text Scale 3D", value: [0, 0, 0] }, { mn: "ADBE Text Opacity", value: 0 }],
+            head + "var t0 = (mm.numKeys >= textIndex) ? mm.key(textIndex).time : thisLayer.inPoint + (textIndex - 1) * d;\n" +
+            "var v = 100 * (1 - yfxCurve((time - t0) / d, p1, p2));\n[v, v, v];", "mot");
+    }
+});
+
+// Style de titre : police (premi\u00e8re install\u00e9e d'une liste), couleurs, contour, capitales, approche.
+Y.prim.def("textStyle", {
+    label: "Style", fx: [], cost: 1, hosts: "text new", main: null,
+    params: {
+        fonts: ["a", []], fill: ["c", "#ffffff"], stroke: ["c", "#000000"], strokeW: ["n", 0, 0, 60, "k"], caps: ["b", false],
+        italic: ["b", false], tracking: ["n", 0, -200, 600], fauxBold: ["b", false]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, font = null, f = V("fonts"), i, cands = [];
+        Y.pt.needText(I);
+        for (i = 0; i < f.length; i++) { if (Y.u.isArray(f[i]) && f[i].length === 2) { cands.push(f[i]); } }
+        if (cands.length) { font = Y.style.font(cands); }
+        Y.style.doc(I.L, function (td) {
+            if (font) { try { td.font = font; } catch (e) {} }
+            td.applyFill = true;
+            td.fillColor = Y.rx.rgb(V("fill"));
+            if (V("strokeW") > 0) {
+                td.applyStroke = true;
+                td.strokeColor = Y.rx.rgb(V("stroke"));
+                td.strokeWidth = Math.max(1, Math.round(V("strokeW") * I.c.intensity));
+                td.strokeOverFill = false;
+            }
+            try { if (V("caps")) { td.allCaps = true; } } catch (e2) {}
+            try { if (V("italic")) { td.fauxItalic = true; } } catch (e3) {}
+            try { if (V("fauxBold")) { td.fauxBold = true; } } catch (e4) {}
+            try { if (V("tracking")) { td.tracking = V("tracking"); } } catch (e5) {}
+        });
+    }
+});
+
+// Ombres empil\u00e9es : contour, halo, extrusion 3D (ombres successives), ombre longue, d\u00e9calage.
+Y.prim.def("textShadow", {
+    label: "Ombre", fx: ["ADBE Drop Shadow"], cost: 1, hosts: "text new layer", main: null,
+    params: {
+        kind: ["e", "outline", ["outline", "halo", "extrude", "long", "offset"]], color: ["c", "#000000"], size: ["n", 4, 0, 300, "k"],
+        steps: ["n", 6, 1, 14], dir: ["n", 135, 0, 360]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), col = Y.rx.rgba(V("color")), sz = V("size") * I.c.intensity, i, n, dirs = [0, 90, 180, 270];
+        if (k === "outline") {
+            for (i = 0; i < dirs.length; i++) { Y.style.shadow(I.L, I.base + "_Contour" + (i + 1), { color: col, dir: dirs[i], dist: Math.max(1, sz), soft: 0 }); }
+        } else if (k === "halo") {
+            Y.style.shadow(I.L, I.base + "_Halo", { color: col, dir: 0, dist: 0, soft: Math.round(sz * 4) });
+            Y.style.shadow(I.L, I.base + "_Halo2", { color: col, dir: 0, dist: 0, soft: Math.round(sz * 12) });
+        } else if (k === "extrude") {
+            n = Math.max(1, Math.round(V("steps")));
+            for (i = 1; i <= n; i++) { Y.style.shadow(I.L, I.base + "_Relief" + i, { color: col, dir: V("dir"), dist: Y.u.round(sz * i / n, 2), soft: 0 }); }
+        } else if (k === "long") {
+            Y.style.shadow(I.L, I.base + "_Longue", { color: col, opacity: 0.6, dir: V("dir"), dist: Math.round(sz), soft: Math.round(sz * 0.6) });
+        } else {
+            Y.style.shadow(I.L, I.base + "_Decale", { color: col, dir: V("dir"), dist: Math.round(sz), soft: 0 });
+        }
+    }
+});
+
+// Remplissage : d\u00e9grad\u00e9 anim\u00e9, chrome (d\u00e9grad\u00e9 + biseau + reflet qui passe), reflet seul.
+Y.prim.def("textFill", {
+    label: "Remplissage", fx: ["ADBE Ramp", "ADBE Bevel Alpha", "CC Light Sweep"], cost: 2, hosts: "text new layer", main: null,
+    params: { kind: ["e", "gradient", ["gradient", "chrome", "sweep"]], colorA: ["c", "#c8bfff"], colorB: ["c", "#ff4655"], speed: ["n", 0.4, 0, 5] },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), gr, bv, ls, sp = Y.rx.f(V("speed"));
+        if (k !== "sweep") {
+            gr = Y.rx.add(I, ["ADBE Ramp"], /gradient ramp/i, "Degrade");
+            Y.rx.set(I, gr, ["ADBE Ramp-0002", "Start Color"], Y.rx.rgba(V("colorA")));
+            Y.rx.set(I, gr, ["ADBE Ramp-0004", "End Color"], Y.rx.rgba(V("colorB")));
+            if (k === "gradient") {
+                Y.rx.setx(I, gr, ["ADBE Ramp-0001", "Start of Ramp"], "var r = sourceRectAtTime(time, false), s = (time * " + sp + ") % 1;\n[r.left - r.width * s, r.top + r.height / 2];");
+                Y.rx.setx(I, gr, ["ADBE Ramp-0003", "End of Ramp"], "var r = sourceRectAtTime(time, false), s = (time * " + sp + ") % 1;\n[r.left + r.width * (1 - s), r.top + r.height / 2];");
+            } else {
+                Y.rx.setx(I, gr, ["ADBE Ramp-0001", "Start of Ramp"], "var r = sourceRectAtTime(time, false);\n[r.left + r.width / 2, r.top];");
+                Y.rx.setx(I, gr, ["ADBE Ramp-0003", "End of Ramp"], "var r = sourceRectAtTime(time, false);\n[r.left + r.width / 2, r.top + r.height];");
+                bv = Y.rx.add(I, ["ADBE Bevel Alpha"], /bevel alpha/i, "Biseau");
+                Y.rx.set(I, bv, ["ADBE Bevel Alpha-0001", "Edge Thickness"], 3);
+                try { Y.rx.set(I, bv, ["ADBE Bevel Alpha-0004", "Light Intensity"], 0.6); } catch (e) {}
+            }
+            if (k === "gradient") { return; }
+        }
+        ls = Y.rx.add(I, ["CC Light Sweep"], /light sweep/i, "Reflet");
+        Y.rx.setx(I, ls, ["CC Light Sweep-0001", "Center"], "var r = sourceRectAtTime(time, false), s = (time * " + (Number(sp) > 0 ? sp : "0.5") + ") % 1.6 - 0.3;\n[r.left + r.width * s, r.top + r.height / 2];");
+    }
+});
+
+// Compteur : 0 -> N sur la dur\u00e9e, nombre de markers pass\u00e9s (compteur de kills) ou chrono.
+Y.prim.def("textCounter", {
+    label: "Compteur", fx: [], cost: 1, hosts: "text new", main: null,
+    params: {
+        kind: ["e", "count", ["count", "markers", "timer"]], from: ["n", 0, -1000000, 1000000], to: ["n", 100, -1000000, 1000000],
+        prefix: ["t", ""], suffix: ["t", ""], decimals: ["n", 0, 0, 3]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, st, n, X = Y.x.ctl, k = V("kind"), body, pre = Y.x.esc(V("prefix")), suf = Y.x.esc(V("suffix"));
+        Y.pt.needText(I);
+        st = I.L.property("ADBE Text Properties").property("ADBE Text Document");
+        n = Y.pt.ctl(I);
+        if (k === "markers") {
+            body = "var mm = thisLayer.marker, c = 0;\nfor (var j = 1; j <= mm.numKeys; j++) { if (mm.key(j).time <= time) { c++; } }\nvar out = \"\" + c;\n";
+        } else if (k === "timer") {
+            body = "var e = Math.max(0, time - thisLayer.inPoint), m = Math.floor(e / 60), sec = e - m * 60;\n" +
+                   "var out = m + \":\" + (sec < 10 ? \"0\" : \"\") + sec.toFixed(2);\n";
+        } else {
+            body = Y.x.LIB_CURVE + "\nvar fd = thisComp.frameDuration, d = Math.max(1, " + X(n.dur) + ") * fd;\n" +
+                   "var g = yfxCurve(Math.max(0, Math.min(1, (time - thisLayer.inPoint) / d)), " + X(n.curve.p1) + ", " + X(n.curve.p2) + ");\n" +
+                   "var out = (" + Y.rx.f(V("from")) + " + (" + Y.rx.f(V("to") - V("from")) + ") * g).toFixed(" + Math.round(V("decimals")) + ");\n";
+        }
+        Y.x.set(st, body + "\"" + pre + "\" + out + \"" + suf + "\";");
+    }
+});
 // ---- src/50_timing.jsx ----
 // =====================================================================
 // VITESSE & RYTHME
@@ -2422,7 +4229,7 @@ Y.speed.expr = function (L) {
         "var mm = thisLayer.marker;\n" +
         "for (var i = 1; i <= mm.numKeys; i++) {\n" +
         "  var k = mm.key(i), t0 = k.time, cm = k.comment;\n" +
-        s +
+        s + (Y.pm && Y.pm.speedTerms ? Y.pm.speedTerms(L) : "") +
         "}\n" +
         "Math.max(0, Math.min(thisLayer.source.duration - fd, src));";
 };
@@ -2591,6 +4398,452 @@ Y.reg.add({
         return "Courbe " + c.curve.name + " appliqu\u00e9e \u00e0 " + done + " intervalle(s) de keyframes.";
     }
 });
+// ---- src/51_p_create.jsx ----
+// =====================================================================
+// PRIMITIVES : calques cr\u00e9\u00e9s (HUD, texte, particules), cam\u00e9ra 3D, parallaxe, transitions \u00e0 2 calques.
+// =====================================================================
+Y.pc = {};
+
+// ---------------------------------------------------------------- formes
+// Groupe rectangle / ellipse dans un calque de forme. o = { fill, stroke, sw, round, rot, op }. Renvoie l'index du groupe.
+Y.pc.shape = function (L, kind, size, pos, o) {
+    var root = L.property("ADBE Root Vectors Group"), gi, vg, mn = kind === "ellipse" ? "ADBE Vector Shape - Ellipse" : "ADBE Vector Shape - Rect", sh, tg;
+    o = o || {};
+    gi = root.addProperty("ADBE Vector Group").propertyIndex;
+    vg = function () { return L.property("ADBE Root Vectors Group").property(gi).property("ADBE Vectors Group"); };
+    vg().addProperty(mn);
+    if (o["fill"]) { vg().addProperty("ADBE Vector Graphic - Fill"); }
+    if (o.stroke) { vg().addProperty("ADBE Vector Graphic - Stroke"); }
+    sh = vg().property(mn);
+    if (kind === "ellipse") {
+        sh.property("ADBE Vector Ellipse Size").setValue(size);
+        sh.property("ADBE Vector Ellipse Position").setValue(pos);
+    } else {
+        sh.property("ADBE Vector Rect Size").setValue(size);
+        sh.property("ADBE Vector Rect Position").setValue(pos);
+        if (o.round) { sh.property("ADBE Vector Rect Roundness").setValue(o.round); }
+    }
+    if (o["fill"]) { vg().property("ADBE Vector Graphic - Fill").property("ADBE Vector Fill Color").setValue(Y.rx.rgba(o["fill"])); }
+    if (o.stroke) {
+        vg().property("ADBE Vector Graphic - Stroke").property("ADBE Vector Stroke Color").setValue(Y.rx.rgba(o.stroke));
+        vg().property("ADBE Vector Graphic - Stroke").property("ADBE Vector Stroke Width").setValue(o.sw || 4);
+    }
+    tg = L.property("ADBE Root Vectors Group").property(gi).property("ADBE Vector Transform Group");
+    if (o.rot) { tg.property("ADBE Vector Rotation").setValue(o.rot); }
+    if (o.op !== undefined) { tg.property("ADBE Vector Group Opacity").setValue(o.op); }
+    return gi;
+};
+Y.pc.rectProp = function (L, gi, key) {
+    return L.property("ADBE Root Vectors Group").property(gi).property("ADBE Vectors Group").property("ADBE Vector Shape - Rect").property(key);
+};
+
+// Calque texte styl\u00e9 (utilis\u00e9 par textLayer et les HUD). o = { size (px), fill, fonts, caps, just: "center|left|right" }
+Y.pc.text = function (comp, word, o) {
+    var T = comp.layers.addText(word), tp = T.property("ADBE Text Properties").property("ADBE Text Document"), td = tp.value, font = null;
+    o = o || {};
+    if (o.fonts && o.fonts.length) { font = Y.style.font(o.fonts); }
+    td.fontSize = o.size || 80;
+    td.applyFill = true;
+    td.fillColor = Y.rx.rgb(o["fill"] || "#ffffff");
+    td.justification = o.just === "left" ? ParagraphJustification.LEFT_JUSTIFY : o.just === "right" ? ParagraphJustification.RIGHT_JUSTIFY : ParagraphJustification.CENTER_JUSTIFY;
+    if (font) { try { td.font = font; } catch (e) {} }
+    try { if (o.caps) { td.allCaps = true; } } catch (e2) {}
+    tp.setValue(td);
+    return T;
+};
+
+Y.pc.FONTS = [["Tungsten", "Bold"], ["Bebas Neue", "Regular"], ["Anton", "Regular"], ["Oswald", "Bold"], ["Impact", "Regular"], ["Arial", "Bold"]];
+
+// Opacit\u00e9 et \u00e9chelle d'un calque cr\u00e9\u00e9 selon le pilotage : marker = visible pendant Dur\u00e9e apr\u00e8s chaque d\u00e9clenchement,
+// inout = entre et sort avec la courbe, loop = toujours.
+Y.pc.animate = function (I, L, pop) {
+    var tg = L.property("ADBE Transform Group"), body;
+    if (I.drive === "marker") {
+        Y.x.set(tg.property("ADBE Opacity"), Y.rx.expr(I, { env: "main" }, "(tt >= 0 && tt < D) ? 100 * Math.min(1, 4 * EP + 0.2) : 0;"));
+        if (pop) { Y.x.set(tg.property("ADBE Scale"), Y.rx.expr(I, { env: "main" }, "var g = (tt >= 0 && tt < D) ? 1 + " + Y.rx.f(pop) + " * E : 1;\n[value[0] * g, value[1] * g];")); }
+    } else if (I.drive === "inout") {
+        body = "100 * Math.max(0, Math.min(1, IO));";
+        Y.x.set(tg.property("ADBE Opacity"), Y.rx.expr(I, null, body));
+        if (pop) { Y.x.set(tg.property("ADBE Scale"), Y.rx.expr(I, null, "var g = 1 - " + Y.rx.f(pop) + " * (1 - IO);\n[value[0] * g, value[1] * g];")); }
+    }
+};
+
+Y.pc.HUD = ["hitmarker", "crosshair", "killfeed", "letterbox", "frame", "perforation", "rec", "scoreboard", "playerbar", "lowerthird", "grid", "brackets", "cases"];
+
+Y.prim.def("hud", {
+    label: "HUD", fx: [], cost: 1, hosts: "new", main: null, creates: true,
+    params: {
+        kind: ["e", "hitmarker", Y.pc.HUD], color: ["c", "#ffffff"], accent: ["c", "#ff4655"], size: ["n", 100, 10, 400],
+        ratio: ["n", 2.39, 0.5, 4], text: ["t", ""], text2: ["t", ""]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), comp = I.comp, w = comp.width, h = comp.height, cx = w / 2, cy = h / 2;
+        var L = comp.layers.addShape(), sz = V("size") / 100, col = V("color"), acc = V("accent"), i, gi, T, T2, bh, span = I.drive === "inout" ? "cti" : "comp", g, n;
+        // instance propre \u00e0 chaque calque : les expressions lisent les r\u00e9glages et markers du calque ma\u00eetre
+        var X = function (lay) { return lay === I.M ? I : Y.rx.child(I, lay); };
+        Y.rx.place(I, L, "HUD", span);
+        L.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
+        if (k === "hitmarker") {
+            for (i = 0; i < 4; i++) {
+                Y.pc.shape(L, "rect", [7 * sz, 30 * sz], [cx + (i % 2 ? 1 : -1) * 26 * sz, cy + (i < 2 ? -1 : 1) * 26 * sz], { fill: col, rot: (i === 0 || i === 3) ? -45 : 45 });
+            }
+            L.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([cx, cy]);
+            L.property("ADBE Transform Group").property("ADBE Position").setValue([cx, cy]);
+            Y.pc.animate(X(L), L, 0.5);
+        } else if (k === "crosshair") {
+            for (i = 0; i < 4; i++) {
+                gi = Y.pc.shape(L, "rect", i < 2 ? [6 * sz, 26 * sz] : [26 * sz, 6 * sz], [cx, cy], { fill: col });
+                Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Position"), Y.rx.expr(X(L), { env: "main" },
+                    "var G = " + Y.rx.f(12 * sz) + " + " + Y.rx.f(30 * sz) + " * EP + " + Y.rx.f(13 * sz) + ";\n" +
+                    ["[" + cx + ", " + cy + " - G]", "[" + cx + ", " + cy + " + G]", "[" + cx + " - G, " + cy + "]", "[" + cx + " + G, " + cy + "]"][i] + ";"));
+            }
+            Y.pc.shape(L, "rect", [6 * sz, 6 * sz], [cx, cy], { fill: acc });
+        } else if (k === "killfeed") {
+            T = Y.pc.text(comp, V("text") || "YEXO  >  ENEMY", { size: Math.round(h * 0.022 * sz), fill: "#ffffff", just: "right" });
+            Y.rx.place(I, T, "Texte", span);
+            T.property("ADBE Transform Group").property("ADBE Position").setValue([w * 0.92, h * 0.16]);
+            T.moveBefore(L);
+            g = "thisComp.layer(\"" + Y.x.esc(T.name) + "\")";
+            gi = Y.pc.shape(L, "rect", [100, 40], [0, 0], { fill: "#0e0e10", op: 85 });
+            Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Size"), "var r = " + g + ".sourceRectAtTime(time, false);\n[r.width + 40, r.height + 24];");
+            Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Position"), "var r = " + g + ".sourceRectAtTime(time, false), p = " + g + ".transform.position;\n[p[0] + r.left + r.width / 2, p[1] + r.top + r.height / 2];");
+            gi = Y.pc.shape(L, "rect", [6, 40], [0, 0], { fill: acc });
+            Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Size"), "var r = " + g + ".sourceRectAtTime(time, false);\n[6, r.height + 24];");
+            Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Position"), "var r = " + g + ".sourceRectAtTime(time, false), p = " + g + ".transform.position;\n[p[0] + r.left + r.width + 23, p[1] + r.top + r.height / 2];");
+            if (I.drive === "inout") {
+                Y.x.set(T.property("ADBE Transform Group").property("ADBE Position"), Y.rx.expr(X(T), null, "[value[0] + " + Y.rx.f(w * 0.5) + " * (1 - IO), value[1]];"));
+            }
+        } else if (k === "letterbox") {
+            bh = V("ratio") >= w / h ? Math.max(0, (h - w / V("ratio")) / 2) : 0;
+            n = bh > 0 ? [[w + 4, bh, cx, bh / 2], [w + 4, bh, cx, h - bh / 2]] : [[(w - h * V("ratio")) / 2, h + 4, (w - h * V("ratio")) / 4, cy], [(w - h * V("ratio")) / 2, h + 4, w - (w - h * V("ratio")) / 4, cy]];
+            for (i = 0; i < 2; i++) {
+                gi = Y.pc.shape(L, "rect", [n[i][0], n[i][1]], [n[i][2], n[i][3]], { fill: "#000000" });
+                if (I.drive === "inout" && bh > 0) {
+                    Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Position"), Y.rx.expr(X(L), null, "[value[0], value[1] + " + (i ? 1 : -1) + " * " + Y.rx.f(bh) + " * (1 - IO)];"));
+                }
+            }
+        } else if (k === "frame" || k === "cases") {
+            Y.pc.shape(L, "rect", [w - 60 * sz, h - 60 * sz], [cx, cy], { stroke: k === "cases" ? "#000000" : col, sw: k === "cases" ? 26 * sz : 4 * sz, round: k === "cases" ? 0 : 18 * sz });
+            if (k === "cases") { Y.pc.shape(L, "rect", [w - 104 * sz, h - 104 * sz], [cx, cy], { stroke: "#ffffff", sw: 6 * sz }); }
+            Y.pc.animate(X(L), L, 0);
+        } else if (k === "perforation") {
+            for (i = 0; i < 2; i++) { Y.pc.shape(L, "rect", [w * 0.07, h + 4], [i ? w - w * 0.035 : w * 0.035, cy], { fill: "#0a0a0a" }); }
+            n = 14;
+            for (i = 0; i < n * 2; i++) {
+                Y.pc.shape(L, "rect", [w * 0.03, h / n * 0.45], [(i < n) ? w * 0.035 : w - w * 0.035, (i % n + 0.5) * h / n], { fill: "#d9d2c3", round: 4 });
+            }
+            Y.x.set(L.property("ADBE Transform Group").property("ADBE Position"), "[value[0], value[1] + (time * 300) % " + Y.rx.f(h / n) + "];");
+        } else if (k === "rec") {
+            for (i = 0; i < 4; i++) {
+                g = [i % 2 ? w - 70 * sz : 70 * sz, i < 2 ? 110 * sz : h - 110 * sz];
+                Y.pc.shape(L, "rect", [70 * sz, 6 * sz], [g[0] + (i % 2 ? -32 : 32) * sz, g[1]], { fill: col });
+                Y.pc.shape(L, "rect", [6 * sz, 70 * sz], [g[0], g[1] + (i < 2 ? 32 : -32) * sz], { fill: col });
+            }
+            gi = Y.pc.shape(L, "ellipse", [26 * sz, 26 * sz], [130 * sz, 190 * sz], { fill: acc });
+            Y.x.set(L.property("ADBE Root Vectors Group").property(gi).property("ADBE Vector Transform Group").property("ADBE Vector Group Opacity"), "(Math.floor(time * 2) % 2 == 0) ? 100 : 0;");
+            T = Y.pc.text(comp, V("text") || "REC", { size: Math.round(44 * sz), fill: col, just: "left", fonts: [["Courier New", "Bold"], ["Consolas", "Bold"]] });
+            Y.rx.place(I, T, "Rec", span);
+            T.property("ADBE Transform Group").property("ADBE Position").setValue([160 * sz, 206 * sz]);
+            T2 = Y.pc.text(comp, "00:00:00", { size: Math.round(40 * sz), fill: col, just: "right", fonts: [["Courier New", "Bold"], ["Consolas", "Bold"]] });
+            Y.rx.place(I, T2, "Horloge", span);
+            T2.property("ADBE Transform Group").property("ADBE Position").setValue([w - 110 * sz, h - 170 * sz]);
+            Y.x.set(T2.property("ADBE Text Properties").property("ADBE Text Document"),
+                "var e = Math.floor(time), hh = Math.floor(e / 3600), mn = Math.floor(e / 60) % 60, ss = e % 60;\nfunction z(n) { return (n < 10 ? \"0\" : \"\") + n; }\nz(hh) + \":\" + z(mn) + \":\" + z(ss);");
+        } else if (k === "scoreboard") {
+            Y.pc.shape(L, "rect", [w * 0.46 * sz, 74 * sz], [cx, 96 * sz], { fill: "#0b1a2e", round: 8 * sz, op: 92 });
+            Y.pc.shape(L, "rect", [w * 0.1 * sz, 74 * sz], [cx - w * 0.18 * sz, 96 * sz], { fill: acc, round: 8 * sz });
+            Y.pc.shape(L, "rect", [w * 0.1 * sz, 74 * sz], [cx + w * 0.18 * sz, 96 * sz], { fill: col === "#ffffff" ? "#00c2b2" : col, round: 8 * sz });
+            T = Y.pc.text(comp, V("text") || "13   -   11", { size: Math.round(48 * sz), fill: "#ffffff", fonts: Y.pc.FONTS });
+            Y.rx.place(I, T, "Score", span);
+            T.property("ADBE Transform Group").property("ADBE Position").setValue([cx, 113 * sz]);
+            Y.pc.animate(X(L), L, 0);
+        } else if (k === "playerbar" || k === "lowerthird") {
+            g = k === "playerbar" ? [w * 0.36 * sz, h - 150 * sz] : [w * 0.42 * sz, h * 0.78];
+            Y.pc.shape(L, "rect", [w * 0.6 * sz, 96 * sz], [g[0], g[1]], { fill: "#0b0b0d", round: 6 * sz, op: 90 });
+            Y.pc.shape(L, "rect", [10 * sz, 96 * sz], [g[0] - w * 0.3 * sz + 5 * sz, g[1]], { fill: acc });
+            if (k === "playerbar") {
+                gi = Y.pc.shape(L, "rect", [w * 0.5 * sz, 10 * sz], [g[0] + 10 * sz, g[1] + 30 * sz], { fill: "#3fcf8e" });
+                Y.x.set(Y.pc.rectProp(L, gi, "ADBE Vector Rect Size"), "[value[0] * (0.35 + 0.65 * (Math.cos(time * 0.7) * 0.5 + 0.5)), value[1]];");
+            }
+            T = Y.pc.text(comp, V("text") || (k === "playerbar" ? "YEXO" : "YEXO FPS"), { size: Math.round(40 * sz), fill: "#ffffff", just: "left", fonts: Y.pc.FONTS, caps: true });
+            Y.rx.place(I, T, "Nom", span);
+            T.property("ADBE Transform Group").property("ADBE Position").setValue([g[0] - w * 0.27 * sz, g[1] + (k === "playerbar" ? 4 : -6) * sz]);
+            if (k === "lowerthird") {
+                T2 = Y.pc.text(comp, V("text2") || "VALORANT \u00b7 ACE", { size: Math.round(24 * sz), fill: "#b8b5af", just: "left" });
+                Y.rx.place(I, T2, "Sous", span);
+                T2.property("ADBE Transform Group").property("ADBE Position").setValue([g[0] - w * 0.27 * sz, g[1] + 30 * sz]);
+            }
+            if (I.drive === "inout") {
+                Y.x.set(L.property("ADBE Transform Group").property("ADBE Position"), Y.rx.expr(X(L), null, "[value[0] - " + Y.rx.f(w * 0.8) + " * (1 - IO), value[1]];"));
+                T.parent = L;
+                if (T2) { T2.parent = L; }
+            }
+        } else if (k === "grid") {
+            n = 6;
+            for (i = 1; i < n; i++) { Y.pc.shape(L, "rect", [2, h + 4], [w * i / n, cy], { fill: col, op: 22 }); }
+            for (i = 1; i < 10; i++) { Y.pc.shape(L, "rect", [w + 4, 2], [cx, h * i / 10], { fill: col, op: 22 }); }
+            Y.pc.animate(X(L), L, 0);
+        } else {
+            // brackets : crochets de vis\u00e9e aux 4 coins
+            for (i = 0; i < 4; i++) {
+                g = [i % 2 ? w - 90 * sz : 90 * sz, i < 2 ? 220 * sz : h - 220 * sz];
+                Y.pc.shape(L, "rect", [80 * sz, 8 * sz], [g[0] + (i % 2 ? -36 : 36) * sz, g[1]], { fill: col });
+                Y.pc.shape(L, "rect", [8 * sz, 80 * sz], [g[0], g[1] + (i < 2 ? 36 : -36) * sz], { fill: col });
+            }
+            L.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([cx, cy]);
+            L.property("ADBE Transform Group").property("ADBE Position").setValue([cx, cy]);
+            Y.pc.animate(X(L), L, -0.08);
+        }
+    }
+});
+
+// Calque texte : mot de kill (ACE, 1v5, CLUTCH), onomatop\u00e9e, titre. Les \u00e9tapes suivantes l'animent.
+Y.prim.def("textLayer", {
+    label: "Texte", fx: [], cost: 1, hosts: "new", main: null, creates: true,
+    params: {
+        word: ["t", "ACE"], size: ["n", 14, 2, 60], pos: ["e", "center", ["center", "upper", "lower", "top", "bottom"]],
+        fill: ["c", "#ffffff"], fonts: ["a", []], caps: ["b", true], rot: ["n", 0, -45, 45]
+    },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, comp = I.comp, f = V("fonts"), T, y;
+        T = Y.pc.text(comp, String(V("word")), { size: Math.round(comp.height * V("size") / 100), fill: V("fill"), fonts: f.length ? f : Y.pc.FONTS, caps: V("caps") });
+        Y.rx.place(I, T, "Texte", I.drive === "inout" ? "cti" : "comp");
+        y = { center: 0.5, upper: 0.36, lower: 0.66, top: 0.18, bottom: 0.84 }[V("pos")];
+        T.property("ADBE Transform Group").property("ADBE Position").setValue([comp.width / 2, comp.height * y]);
+        if (V("rot")) { T.property("ADBE Transform Group").property("ADBE Rotate Z").setValue(V("rot")); }
+        if (I.drive === "marker") { Y.pc.animate(T === I.M ? I : Y.rx.child(I, T), T, 0); }
+    }
+});
+
+// Particules (lourd) : \u00e9toiles (CC Star Burst) ou CC Particle World (poussi\u00e8re, \u00e9tincelles, braises, neige).
+Y.prim.def("particles", {
+    label: "Particules", fx: ["CC Particle World", "CC Star Burst"], cost: 4, hosts: "new any adj", main: "amount", creates: true,
+    params: { kind: ["e", "dust", ["dust", "sparks", "stars", "snow", "embers"]], amount: ["n", 60, 0, 400, "k"], color: ["c", "#ffffff"] },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), L, pw, J, soft, cfg;
+        L = Y.l.addSolid(I.comp, I.base, [0, 0, 0], "sib_000000", {});
+        L.blendingMode = BlendingMode.SCREEN;
+        if (I.L) { Y.rx.place(I, L, "Particules"); J = Y.rx.child(I, L); } else { Y.rx.place(I, L, "Particules", I.drive === "inout" ? "cti" : "comp"); J = I; }
+        soft = function (keys, v) { try { Y.rx.set(J, pw, keys, v); } catch (e) { Y.log("WARN", I.def.name + " : " + keys.join("/") + " ignor\u00e9 (" + Y.errText(e) + ")"); } };
+        if (k === "stars") {
+            pw = Y.rx.add(J, ["CC Star Burst"], /star burst/i, "Etoiles");
+            soft(["CC Star Burst-0002", "Speed"], 0.4);
+            soft(["CC Star Burst-0004", "Grid Spacing"], 40);
+            Y.rx.setx(J, pw, ["CC Star Burst-0005", "Size"], Y.rx.expr(J, s, "Math.max(0, " + Y.rx.amt(J, s, "amount", true) + " * 0.5);"));
+            return;
+        }
+        cfg = { dust: [0.6, 3, 0, 0.05, 1.2], sparks: [3, 0.8, 0.6, 1.4, 0.1], snow: [1.5, 4, 0.06, 0.05, 1.5], embers: [1, 2.5, -0.12, 0.3, 0.6] }[k];
+        pw = Y.rx.add(J, ["CC Particle World"], /particle world/i, "Particules");
+        Y.rx.setx(J, pw, ["CC Particle World-0001", "Birth Rate"], Y.rx.expr(J, s, Y.rx.f(cfg[0]) + " * Math.max(0, " + Y.rx.amt(J, s, "amount", true) + ") / 60;"));
+        soft(["CC Particle World-0002", "Longevity (sec)"], cfg[1]);
+        soft(["Gravity"], cfg[2]);
+        soft(["Velocity"], cfg[3]);
+        soft(["Radius X"], cfg[4]);
+        soft(["Radius Y"], cfg[4]);
+        soft(["Birth Color"], Y.rx.rgba(V("color")));
+        soft(["Death Color"], Y.rx.rgba(V("color")));
+    }
+});
+
+// ---------------------------------------------------------------- cam\u00e9ra 3D
+// Cam\u00e9ra YFX + null de contr\u00f4le (les r\u00e9glages vont sur le null : une cam\u00e9ra n'a pas d'effets).
+// Les calques visuels s\u00e9lectionn\u00e9s passent en 3D. Pour la parallaxe, il faut des calques \u00e0 des profondeurs diff\u00e9rentes.
+Y.pc.MOVES = ["push", "pull", "orbit", "tilt", "pan", "roll", "crane", "dollyzoom", "shake3d"];
+Y.prim.def("camera", {
+    label: "Camera", fx: [], cost: 2, hosts: "new", main: "amount", creates: true,
+    params: { move: ["e", "push", Y.pc.MOVES], amount: ["n", 30, -400, 400, "k"], make3d: ["b", true] },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, comp = I.comp, cx = comp.width / 2, cy = comp.height / 2, N, cam, J, z0, mv = V("move"), st = s, i, tg, head, A;
+        N = comp.layers.addNull(comp.duration);
+        Y.rx.place(I, N, "Ctrl", I.drive === "inout" ? "cti" : "comp");
+        if (V("make3d")) {
+            tg = Y.kit.split(I.c.layers).targets;
+            for (i = 0; i < tg.length; i++) { try { tg[i].threeDLayer = true; } catch (e) {} }
+        }
+        cam = comp.layers.addCamera(Y.kit.freeName(comp, I.base + "_Cam"), [cx, cy]);
+        cam.inPoint = N.inPoint;
+        cam.outPoint = N.outPoint;
+        cam.comment = "YexoFX";
+        I.made.push(cam.name);
+        z0 = Number(cam.property("ADBE Camera Options Group").property("ADBE Camera Zoom").value);
+        J = Y.rx.child(I, cam);
+        if (!s.env && I.drive === "marker" && mv !== "shake3d") { st = { p: s.p, env: { shape: "ramp" } }; }
+        A = Y.rx.num(J, st, "amount");
+        head = Y.rx.pre(J) + Y.rx.envCode(J, st) +
+            (I.drive === "loop" || I.drive === "static" ? "var G = yfxBez(Math.max(0, Math.min(1, (time - LAY.inPoint) / Math.max(fd, LAY.outPoint - LAY.inPoint))), 0.45, 0, 0.55, 1);\n" : "var G = E;\n") +
+            "var A = " + A + ", Z0 = " + Y.rx.f(z0) + ";\n";
+        tg = function (mn) { return cam.property("ADBE Transform Group").property(mn); };
+        if (mv === "push" || mv === "pull") {
+            Y.x.set(tg("ADBE Position"), head + "[value[0], value[1], value[2] + " + (mv === "push" ? "" : "-") + "Z0 * A / 100 * G];");
+        } else if (mv === "orbit") {
+            Y.x.set(tg("ADBE Position"), head + "var th = A * G * Math.PI / 180;\n[" + cx + " + Z0 * Math.sin(th), value[1], -Z0 * Math.cos(th)];");
+        } else if (mv === "tilt" || mv === "pan") {
+            Y.x.set(tg("ADBE Anchor Point"), head + "var o = Z0 * Math.tan(A * G * Math.PI / 180);\n" + (mv === "tilt" ? "[value[0], value[1] - o, value[2]];" : "[value[0] + o, value[1], value[2]];"));
+        } else if (mv === "roll") {
+            Y.x.set(tg("ADBE Rotate Z"), head + "value + A * G;");
+        } else if (mv === "crane") {
+            Y.x.set(tg("ADBE Position"), head + "[value[0], value[1] - A / 100 * thisComp.height * G, value[2]];");
+            Y.x.set(tg("ADBE Anchor Point"), head + "[value[0], value[1] - A / 100 * thisComp.height * G * 0.6, value[2]];");
+        } else if (mv === "dollyzoom") {
+            Y.x.set(tg("ADBE Position"), head + "[value[0], value[1], value[2] + Z0 * A / 100 * G];");
+            Y.x.set(cam.property("ADBE Camera Options Group").property("ADBE Camera Zoom"), head + "value * (Z0 - Z0 * A / 100 * G) / Z0;");
+        } else {
+            Y.x.set(tg("ADBE Position"), head + "seedRandom(sd, true);\nvar q = random(0, 6.28);\n[value[0] + A * E * Math.sin(17 * tt + q), value[1] + A * E * Math.sin(21 * tt + q * 2), value[2] + A * 2 * E * Math.sin(13 * tt)];");
+            Y.x.set(tg("ADBE Rotate Z"), head + "value + A * 0.05 * E * Math.sin(19 * tt);");
+        }
+    }
+});
+
+// Parallaxe : calques s\u00e9lectionn\u00e9s r\u00e9partis en profondeur (le premier en avant), ou faux relief sur un clip 2D.
+Y.prim.def("parallax", {
+    label: "Profondeur", fx: ["ADBE Displacement Map", "CC Cylinder", "CC Sphere"], cost: 2, hosts: "any layer new", main: null,
+    params: { kind: ["e", "layers", ["layers", "depth", "cylinder", "sphere"]], depth: ["n", 400, 0, 6000, "k"], speed: ["n", 0.5, 0, 6] },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), tg = Y.kit.split(I.c.layers).targets, i, L, n, z, Z0, sc, d = V("depth") * I.c.intensity, fx, T, sp = Y.rx.f(V("speed") * 2 * Math.PI);
+        if (k === "layers") {
+            n = tg.length;
+            if (n < 2) { Y.fail("La parallaxe demande au moins 2 calques s\u00e9lectionn\u00e9s (premier plan, arri\u00e8re-plan\u2026)."); }
+            Z0 = I.comp.width * 50 / 36;
+            for (i = 0; i < n; i++) {
+                L = tg[i];
+                if (L.locked) { Y.fail(Y.MSG.locked(L)); }
+                L.threeDLayer = true;
+                z = -d / 2 + d * i / (n - 1);
+                T = L.property("ADBE Transform Group");
+                T.property("ADBE Position").setValue([T.property("ADBE Position").value[0], T.property("ADBE Position").value[1], z]);
+                sc = T.property("ADBE Scale").value;
+                T.property("ADBE Scale").setValue([sc[0] * (Z0 + z) / Z0, sc[1] * (Z0 + z) / Z0, 100]);
+            }
+            return;
+        }
+        L = I.L;
+        if (!L || L.adjustmentLayer) { Y.fail("S\u00e9lectionne ton clip : le relief se calcule sur l'image elle-m\u00eame, pas sur un calque d'ajustement."); }
+        if (k === "depth") {
+            fx = Y.rx.add(I, ["ADBE Displacement Map"], /displacement map/i, "Relief");
+            Y.rx.set(I, fx, ["ADBE Displacement Map-0001", "Displacement Map Layer"], L.index);
+            Y.rx.set(I, fx, ["ADBE Displacement Map-0002", "Use For Horizontal Displacement"], 5);
+            Y.rx.set(I, fx, ["ADBE Displacement Map-0004", "Use For Vertical Displacement"], 5);
+            Y.rx.setx(I, fx, ["ADBE Displacement Map-0003", "Max Horizontal Displacement"], Y.rx.f(d / 40) + " * Math.sin(time * " + sp + ");");
+            Y.rx.setx(I, fx, ["ADBE Displacement Map-0005", "Max Vertical Displacement"], Y.rx.f(d / 80) + " * Math.cos(time * " + sp + ");");
+            return;
+        }
+        fx = Y.rx.add(I, k === "sphere" ? ["CC Sphere"] : ["CC Cylinder"], k === "sphere" ? /cc sphere/i : /cc cylinder/i, k === "sphere" ? "Sphere" : "Cylindre");
+        Y.rx.setx(I, fx, ["Rotation Y"], Y.rx.f(d / 20) + " * Math.sin(time * " + sp + ");");
+    }
+});
+
+// ---------------------------------------------------------------- transitions \u00e0 2 calques
+// Volet : le plan entrant B se r\u00e9v\u00e8le par-dessus A pendant Dur\u00e9e avant la coupe. Il faut que B ait des images
+// avant sa coupe (B est rallong\u00e9 vers la gauche) ; sinon, message clair.
+Y.pc.WIPES = ["linear", "radial", "clock", "iris", "venetian", "block", "luma", "grid"];
+Y.pc.handlesBefore = function (L, t) {
+    var src = L.source;
+    if (!src || (src.mainSource && src.mainSource.isStill) || L.timeRemapEnabled) { return true; }
+    return t >= L.startTime - 0.0001;
+};
+Y.prim.def("wipe", {
+    label: "Volet", fx: ["ADBE Linear Wipe", "ADBE Radial Wipe", "ADBE Venetian Blinds", "ADBE Block Dissolve", "ADBE Gradient Wipe", "CC Grid Wipe"], cost: 1,
+    hosts: "two", main: null,
+    params: { kind: ["e", "linear", Y.pc.WIPES], angle: ["n", 90, 0, 360], feather: ["n", 40, 0, 600] },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), A = I.A, B = I.B, D = I.c.dur, t0 = I.cut - D, fx, comp, prog, mi, sh, r, cx, cy;
+        if (!A || !B) { Y.fail("S\u00e9lectionne 2 calques : le plan sortant puis le plan entrant."); }
+        if (!Y.pc.handlesBefore(B, t0)) {
+            Y.fail("Le plan entrant \u00ab " + B.name + " \u00bb n'a pas " + I.c.frames + " images avant sa coupe. Rallonge-le vers la gauche, ou choisis une transition sur calque d'ajustement.");
+        }
+        B.inPoint = Math.max(0, t0);
+        if (B.index > A.index) { B.moveBefore(A); }
+        prog = "var w = nk ? Math.max(0, Math.min(1, (tn + D) / D)) : 1;\nvar g = Math.max(0, Math.min(1, yfxCurve(w, c1, c2)));\n";
+        if (k === "iris") {
+            comp = I.comp;
+            cx = (B.width || comp.width) / 2;
+            cy = (B.height || comp.height) / 2;
+            r = 2;
+            sh = new Shape();
+            sh.vertices = [[cx, cy - r], [cx + r, cy], [cx, cy + r], [cx - r, cy]];
+            sh.inTangents = [[-r * 0.55, 0], [0, -r * 0.55], [r * 0.55, 0], [0, r * 0.55]];
+            sh.outTangents = [[r * 0.55, 0], [0, r * 0.55], [-r * 0.55, 0], [0, -r * 0.55]];
+            sh.closed = true;
+            mi = B.property("ADBE Mask Parade").addProperty("ADBE Mask Atom").propertyIndex;
+            B.property("ADBE Mask Parade").property(mi).name = I.base + "_Iris";
+            B.property("ADBE Mask Parade").property(mi).property("ADBE Mask Shape").setValue(sh);
+            B.property("ADBE Mask Parade").property(mi).property("ADBE Mask Feather").setValue([V("feather"), V("feather")]);
+            Y.x.set(B.property("ADBE Mask Parade").property(mi).property("ADBE Mask Offset"), Y.rx.expr(I, null, prog + "g * " + Y.rx.f(Math.sqrt(cx * cx + cy * cy) * 1.3) + ";"));
+            return;
+        }
+        if (k === "linear") {
+            fx = Y.rx.add(I, ["ADBE Linear Wipe"], /linear wipe/i, "Volet");
+            Y.rx.set(I, fx, ["ADBE Linear Wipe-0002", "Wipe Angle"], V("angle"));
+            Y.rx.set(I, fx, ["ADBE Linear Wipe-0003", "Feather"], V("feather"));
+        } else if (k === "radial" || k === "clock") {
+            fx = Y.rx.add(I, ["ADBE Radial Wipe"], /radial wipe/i, "Volet");
+            Y.rx.set(I, fx, ["ADBE Radial Wipe-0002", "Start Angle"], V("angle"));
+            try { Y.rx.set(I, fx, ["ADBE Radial Wipe-0004", "Wipe"], k === "clock" ? 1 : 3); } catch (e) {}
+            Y.rx.set(I, fx, ["ADBE Radial Wipe-0005", "Feather"], V("feather"));
+        } else if (k === "venetian") {
+            fx = Y.rx.add(I, ["ADBE Venetian Blinds"], /venetian blinds/i, "Volet");
+            Y.rx.set(I, fx, ["ADBE Venetian Blinds-0002", "Direction"], V("angle"));
+            Y.rx.set(I, fx, ["ADBE Venetian Blinds-0003", "Width"], 60);
+        } else if (k === "block") {
+            fx = Y.rx.add(I, ["ADBE Block Dissolve"], /block dissolve/i, "Volet");
+            Y.rx.set(I, fx, ["ADBE Block Dissolve-0002", "Block Width"], 40);
+            Y.rx.set(I, fx, ["ADBE Block Dissolve-0003", "Block Height"], 40);
+        } else if (k === "luma") {
+            fx = Y.rx.add(I, ["ADBE Gradient Wipe"], /gradient wipe/i, "Volet");
+            Y.rx.set(I, fx, ["ADBE Gradient Wipe-0002", "Transition Softness"], Math.min(100, V("feather")));
+            Y.rx.set(I, fx, ["ADBE Gradient Wipe-0003", "Gradient Layer"], B.index);
+        } else {
+            fx = Y.rx.add(I, ["CC Grid Wipe"], /grid wipe/i, "Volet");
+        }
+        mi = { linear: "ADBE Linear Wipe-0001", radial: "ADBE Radial Wipe-0001", clock: "ADBE Radial Wipe-0001", venetian: "ADBE Venetian Blinds-0001",
+               block: "ADBE Block Dissolve-0001", luma: "ADBE Gradient Wipe-0001", grid: "CC Grid Wipe-0001" }[k];
+        Y.rx.setx(I, fx, [mi, "Transition Completion", "Completion"], Y.rx.expr(I, null, prog + "100 * (1 - g);"));
+    }
+});
+
+// Transition 3D : A sort pendant la premi\u00e8re moiti\u00e9 (avant la coupe), B entre pendant la seconde. Pas besoin de
+// chevauchement : chaque plan reste dans son propre temps.
+Y.prim.def("layer3d", {
+    label: "Transition3D", fx: [], cost: 2, hosts: "two", main: null,
+    params: { kind: ["e", "flip", ["flip", "cube", "swing", "slide3d", "fold"]], axis: ["e", "y", ["y", "x"]], amount: ["n", 90, 10, 180] },
+    install: function (I, s) {
+        var V = function (k) { return Y.rx.val(I, s, k); }, k = V("kind"), A = I.A, B = I.B, ja, jb, rot, w = I.comp.width, h = I.comp.height, amt = Y.rx.f(V("amount")), set, Ls = [A, B], i, T, an, ps;
+        if (!A || !B) { Y.fail("S\u00e9lectionne 2 calques : le plan sortant puis le plan entrant."); }
+        rot = (k === "swing" || k === "fold" || V("axis") === "x") ? "ADBE Rotate X" : "ADBE Rotate Y";
+        for (i = 0; i < 2; i++) {
+            if (Ls[i].locked) { Y.fail(Y.MSG.locked(Ls[i])); }
+            Ls[i].threeDLayer = true;
+            T = Ls[i].property("ADBE Transform Group");
+            an = T.property("ADBE Anchor Point").value;
+            ps = T.property("ADBE Position").value;
+            if (k === "cube") {
+                T.property("ADBE Anchor Point").setValue([an[0], an[1], (Ls[i].width || w) / 2]);
+                T.property("ADBE Position").setValue([ps[0], ps[1], (ps[2] || 0) + (Ls[i].width || w) / 2]);
+            } else if (k === "swing" || k === "fold") {
+                T.property("ADBE Anchor Point").setValue([an[0], k === "swing" ? 0 : (Ls[i].height || h), an[2] || 0]);
+                T.property("ADBE Position").setValue([ps[0], ps[1] + (k === "swing" ? -1 : 1) * (Ls[i].height || h) / 2, ps[2] || 0]);
+            }
+        }
+        ja = Y.rx.child(I, A);
+        jb = I;
+        // progression : gA = 0 -> 1 pendant la demi-dur\u00e9e avant la coupe ; gB = 0 -> 1 pendant la demi-dur\u00e9e apr\u00e8s.
+        set = function (J, L, which) {
+            var g = which === "a" ? "var g = nk ? Math.max(0, Math.min(1, (tn + D / 2) / (D / 2))) : 1;\nvar e = yfxCurve(g, c1, c2);\n"
+                                  : "var g = mk ? Math.max(0, Math.min(1, tt / (D / 2))) : 0;\nvar e = 1 - yfxCurve(g, c1, c2);\n";
+            var T2 = L.property("ADBE Transform Group");
+            if (k === "slide3d") {
+                Y.x.set(T2.property("ADBE Position"), Y.rx.expr(J, null, g + "[value[0] " + (which === "a" ? "-" : "+") + " " + Y.rx.f(w * 0.7) + " * e, value[1], value[2] + 600 * e];"));
+                Y.x.set(T2.property("ADBE Rotate Y"), Y.rx.expr(J, null, g + "value " + (which === "a" ? "+" : "-") + " 35 * e;"));
+                return;
+            }
+            // A tourne de 0 \u00e0 -angle, B arrive de +angle \u00e0 0 : une seule rotation continue.
+            Y.x.set(T2.property(rot), Y.rx.expr(J, null, g + "value " + (which === "a" ? "-" : "+") + " " + amt + " * e;"));
+            if (k === "flip") { Y.x.set(T2.property("ADBE Position"), Y.rx.expr(J, null, g + "[value[0], value[1], value[2] + 300 * Math.sin(Math.PI * Math.min(1, e))];")); }
+        };
+        set(ja, A, "a");
+        set(jb, B, "b");
+    }
+});
 // ---- src/60_audio.jsx ----
 // =====================================================================
 // AUDIO : import des SFX de la biblioth\u00e8que (une seule fois par projet, rang\u00e9s dans YFX_SFX)
@@ -2639,6 +4892,42 @@ Y.audio.place = function (path, mode) {
     }
     return times.length > 1 ? decodeURI(file.name) + " plac\u00e9 sur " + times.length + " markers"
                             : decodeURI(file.name) + " plac\u00e9 \u00e0 " + Y.u.tc(times[0], comp);
+};
+
+// Un calque du son \u00e0 chaque instant (sans undo group : l'appelant l'ouvre). Renvoie le nombre de calques pos\u00e9s.
+Y.audio.addAt = function (comp, path, times) {
+    var file = new File(path), item, i, L;
+    if (!file.exists || !times.length) { return 0; }
+    item = Y.audio.item(file);
+    for (i = 0; i < times.length; i++) {
+        L = comp.layers.add(item);
+        L.startTime = Number(times[i]);
+        L.comment = "YexoFX";
+    }
+    return times.length;
+};
+
+// Son pos\u00e9 \u00e0 plusieurs instants (coupes d'un pack de style). Un seul undo group.
+Y.audio.placeTimes = function (path, times) {
+    var comp, file, item, i, L;
+    if (!app.project) { Y.fail(Y.MSG.noProject); }
+    comp = app.project.activeItem;
+    if (!(comp instanceof CompItem)) { Y.fail(Y.MSG.noComp); }
+    file = new File(path);
+    if (!file.exists) { Y.fail("Son introuvable : " + path); }
+    if (!times.length) { Y.fail("Aucun instant o\u00f9 poser le son."); }
+    app.beginUndoGroup("YexoFX : SFX " + file.displayName);
+    try {
+        item = Y.audio.item(file);
+        for (i = 0; i < times.length; i++) {
+            L = comp.layers.add(item);
+            L.startTime = Number(times[i]);
+            L.comment = "YexoFX";
+        }
+    } finally {
+        app.endUndoGroup();
+    }
+    return decodeURI(file.name) + " plac\u00e9 " + times.length + " fois";
 };
 // ---- src/70_previews.jsx ----
 // =====================================================================
@@ -2903,13 +5192,17 @@ Y.pv.begin = function () {
     return { source: st.label, template: st.template.name, raw: Y.pv.rawDir().fsName, queued: st.queued.length };
 };
 
-// a = { id, kind: hit|text|cut, word, params, keep }
+// a = { id, kind: hit|text|cut|loop, word, params, keep, def }
+// def : recette du catalogue v1 (sinon preset natif v0.6 par son id). loop = effet continu : rendu comme un impact.
 Y.pv.render = function (a) {
-    var st = Y.pv.st, id = String(a.id || ""), p = Y.reg.byId[id], kind = String(a.kind || "hit");
-    var comp, L, L2, T, sel = [], msg, rqi, om, file, out, t0 = Y.u.ms(), params = a.params || {};
+    var st = Y.pv.st, id = String(a.id || ""), def = (a.def && a.def.impl !== "native") ? a.def : null, p, kind = String(a.kind || "hit");
+    var comp, L, L2, T, sel = [], msg, rqi, om, file, out, t0 = Y.u.ms(), params = a.params || {}, n3d = 0, k;
     if (!st) { Y.fail("G\u00e9n\u00e9ration des previews non d\u00e9marr\u00e9e (pvBegin)."); }
+    p = def ? Y.rx.preset(def) : Y.reg.byId[id];
+    if (def) { id = String(def.id); n3d = (def.needs && def.needs.layers3d) ? def.needs.layers3d : 0; }
     if (!p || p.hidden) { Y.fail("Preset inconnu : " + id); }
     if (p.needs === "audio") { Y.fail(p.name + " : pas de preview pour un outil audio."); }
+    if (kind === "loop") { kind = "hit"; }
     if (p.needs === "two") { kind = "cut"; }
     if (kind === "text" && p.needs !== "text") { kind = "hit"; }
 
@@ -2933,12 +5226,16 @@ Y.pv.render = function (a) {
                 T = Y.pv.textLayer(comp, a.word);
                 comp.time = Y.pv.TEXT_IN;
                 if (p.needs === "text") { sel = [T]; }
+            } else if (n3d) {
+                // profondeur : le clip au fond, le mot (et des copies) devant
+                sel = [L];
+                for (k = 1; k < n3d; k++) { sel.push(Y.pv.textLayer(comp, a.word)); }
             } else if (p.needs === "av" || p.needs === "layer") {
                 sel = [L];
             }
         }
         if (params.dir === undefined) { params.dir = "in"; }
-        msg = Y.exec(id, params, comp, sel);
+        msg = def ? Y.rx.exec(def, params, comp, sel) : Y.exec(id, params, comp, sel);
 
         out = new File(Y.pv.rawDir().fsName + "/" + id + st.template.ext);
         if (out.exists) { out.remove(); }
@@ -3569,6 +5866,175 @@ Y.test("Sonde : polices (styles)", function (T) {
     T.info("install\u00e9es : " + (found.length ? found.join(", ") : "aucune"));
     T.info("absentes : " + (missing.length ? missing.join(", ") : "aucune"));
 });
+// ---- src/81_dev_v1.jsx ----
+// =====================================================================
+// OUTILS DE DEV v1.0 : sonde des effets, auto-test des recettes (pilot\u00e9 par le panel, preset par preset).
+// =====================================================================
+
+// Effets \u00e0 sonder en plus de ceux des primitives (presets v0.6).
+Y.dev.PROBE_EXTRA = ["ADBE Lumetri", "ADBE Drop Shadow", "ADBE Ramp", "ADBE Glo2", "ADBE Noise", "ADBE Grid", "ADBE Fill",
+                     "ADBE Shift Channels", "ADBE Tint", "ADBE Exposure2", "ADBE CHANNEL MIXER", "ADBE Fractal Noise"];
+
+// Liste plate des param\u00e8tres d'un effet : [{ name, mn, depth }].
+Y.dev.paramList = function (g, depth, out) {
+    var i, p;
+    out = out || [];
+    for (i = 1; i <= g.numProperties; i++) {
+        p = g.property(i);
+        out.push({ name: p.name, mn: p.matchName, depth: depth || 0, group: p.propertyType !== PropertyType.PROPERTY });
+        if (p.propertyType !== PropertyType.PROPERTY && p.numProperties) { Y.dev.paramList(p, (depth || 0) + 1, out); }
+    }
+    return out;
+};
+
+// Sonde : ajoute chaque effet utilis\u00e9 par les primitives sur un solide temporaire et note ses param\u00e8tres
+// (nom affich\u00e9 + matchName). \u00c9crit probe_<date>.txt (lisible) et probe_<date>.json (pour moi).
+Y.dev.probe = function () {
+    var mns = [], seen = {}, i, j, d, comp, L, src, eff, out = [], data = {}, miss = [], f, fj, n = 0;
+    if (!app.project) { Y.fail(Y.MSG.noProject); }
+    for (i = 0; i < Y.prim.list.length; i++) {
+        d = Y.prim.list[i].fx || [];
+        for (j = 0; j < d.length; j++) { if (!seen[d[j]]) { seen[d[j]] = true; mns.push(d[j]); } }
+    }
+    for (j = 0; j < Y.dev.PROBE_EXTRA.length; j++) { if (!seen[Y.dev.PROBE_EXTRA[j]]) { seen[Y.dev.PROBE_EXTRA[j]] = true; mns.push(Y.dev.PROBE_EXTRA[j]); } }
+    out.push("YexoFX " + Y.VERSION + " | sonde des effets | " + Y.u.stamp() + " | AE " + app.version + " | langue " + app.isoLanguage);
+    Y.fx.scan();
+    app.beginUndoGroup("YexoFX : sonde des effets");
+    try {
+        comp = app.project.items.addComp("YFX_PROBE", 1080, 1920, 1, 2, 60);
+        L = comp.layers.addSolid([0.5, 0.5, 0.5], "YFX_PROBE_SOLIDE", 1080, 1920, 1, 2);
+        src = L.source;
+        for (i = 0; i < mns.length; i++) {
+            if (!Y.fx.has(mns[i])) { miss.push(mns[i]); out.push(""); out.push("=== ABSENT : " + mns[i]); continue; }
+            try {
+                eff = Y.p.addEffect(L, mns[i], "P" + i);
+                out.push("");
+                out.push("=== " + mns[i] + " (" + Y.fx.label(mns[i]) + ")");
+                Y.dev.dumpProp(eff, 1, out);
+                data[mns[i]] = { label: Y.fx.label(mns[i]), params: Y.dev.paramList(Y.p.findEffect(L, "P" + i), 0) };
+                n++;
+            } catch (e) {
+                out.push("! " + mns[i] + " : " + Y.errText(e));
+            }
+        }
+    } finally {
+        try { comp.remove(); } catch (e2) {}
+        try { if (src) { src.remove(); } } catch (e3) {}
+        app.endUndoGroup();
+    }
+    out.push("");
+    out.push("Absents : " + (miss.length ? miss.join(", ") : "aucun"));
+    out.push("Effets tiers : " + Y.fx.thirdParty().join(", "));
+    f = Y.dev.saveText("probe_" + Y.u.stamp(true) + ".txt", out.join("\n"), true);
+    fj = Y.dev.saveText("probe_" + Y.u.stamp(true) + ".json", Y.json.stringify({ ae: app.version, lang: app.isoLanguage, effects: data, missing: miss, third: Y.fx.thirdParty() }, " "), false);
+    Y.log("INFO", "sonde : " + n + " effets, " + miss.length + " absent(s)");
+    return { path: f ? f.fsName : null, json: fj ? fj.fsName : null, count: n, missing: miss, text: f ? null : out.join("\n") };
+};
+
+
+// ---------------------------------------------------------------- auto-test des recettes
+// rxBegin : comp de test (solide, texte, 2 clips en pr\u00e9comp avec des images avant / apr\u00e8s la coupe).
+// rxTest {def} : applique une recette (ou un preset natif) sur des copies, v\u00e9rifie les expressions des calques touch\u00e9s.
+// rxEnd : \u00e9crit le rapport autotest_recettes_<date>.txt.
+Y.dev.rx = null;
+
+Y.dev.rxBegin = function () {
+    var T, pc, bg, A, B;
+    if (!app.project) { Y.fail("Ouvre un projet (id\u00e9alement un projet vide) avant l'auto-test."); }
+    app.beginUndoGroup("YexoFX : auto-test (pr\u00e9paration)");
+    try {
+        T = Y.dev.setup();
+        pc = app.project.items.addComp("YFX_TEST_CLIP", 1080, 1920, 1, 12, 60);
+        pc.parentFolder = Y.proj.folder("YFX_Tests");
+        bg = pc.layers.addSolid([0.2, 0.25, 0.3], "Fond", 1080, 1920, 1, 12);
+        try { Y.p.addEffect(bg, "ADBE Ramp", "Degrade"); } catch (e) {}
+        A = T.comp.layers.add(pc);
+        A.name = "YFX_TEST_CLIP_A";
+        A.startTime = -2;
+        A.inPoint = 0;
+        A.outPoint = 2.5;
+        B = T.comp.layers.add(pc);
+        B.name = "YFX_TEST_CLIP_B";
+        B.startTime = 0.5;
+        B.inPoint = 2.5;
+        B.outPoint = 5;
+        T.clipA = A;
+        T.clipB = B;
+    } finally {
+        app.endUndoGroup();
+    }
+    Y.dev.rx = { T: T, lines: [], ok: 0, ko: 0, skip: 0, t0: Y.u.ms() };
+    Y.dev.rx.lines.push("YexoFX " + Y.VERSION + " | build " + Y.BUILD + " | auto-test des recettes du " + Y.u.stamp());
+    Y.dev.rx.lines.push("AE " + app.version + " | langue " + app.isoLanguage + " | moteur d'expressions " + Y.env.engine());
+    Y.dev.rx.lines.push("");
+    return { ok: true };
+};
+
+Y.dev.rxTest = function (a) {
+    var R = Y.dev.rx, T, def = a.def, p, sel = [], dup = [], before, comp, i, errs = [], msg, t0 = Y.u.ms(), host, needs, title, added, seen = {}, out;
+    if (!R) { Y.fail("Auto-test non d\u00e9marr\u00e9 (rxTestBegin)."); }
+    T = R.T;
+    comp = T.comp;
+    title = (def.name || def.id) + " [" + def.id + "]";
+    host = def.host || "any";
+    needs = def.needs && def.needs.sel ? def.needs.sel : "comp";
+    if (needs === "audio" || def.tool) { R.skip++; R.lines.push("[IGNOR\u00c9] " + title + " : \u00e0 tester \u00e0 la main"); return { id: def.id, skip: true }; }
+    before = comp.numLayers;
+    app.beginUndoGroup("YexoFX : test " + def.id);
+    try {
+        if (needs === "text" || host === "text") { dup.push(T.text.duplicate()); }
+        else if (needs === "two" || host === "two") { dup.push(T.clipA.duplicate()); dup.push(T.clipB.duplicate()); }
+        else if (needs === "av" || host === "clip") { dup.push(T.clipA.duplicate()); }
+        else if (needs === "layer" || host === "layer") { dup.push(T.solid.duplicate()); }
+        else if (def.needs && def.needs.layers3d) { dup.push(T.solid.duplicate()); dup.push(T.text.duplicate()); }
+        for (i = 0; i < dup.length; i++) { dup[i].name = "T_" + def.id + (i ? "_" + (i + 1) : ""); dup[i].enabled = true; sel.push(dup[i]); }
+        comp.time = (needs === "two" || host === "two") ? 2.5 : 1;
+    } finally {
+        app.endUndoGroup();
+    }
+    try {
+        if (def.impl === "native") {
+            p = Y.reg.byId[def.id];
+            if (!p) { throw new Error("preset natif absent du moteur"); }
+            msg = Y.execP(p, a.params || {}, comp, sel);
+        } else {
+            msg = Y.rx.exec(def, a.params || {}, comp, sel);
+        }
+        added = comp.numLayers - before;
+        for (i = 1; i <= Math.min(comp.numLayers, added + dup.length + 2); i++) {
+            Y.dev.scanExpr(comp.layer(i), comp.layer(i), [0, 0.5, 1, 1.05, 1.1, 1.3, 2, 2.4, 2.5, 2.6, 3, 4], errs, seen, "");
+        }
+    } catch (e) {
+        errs.push(Y.errText(e));
+    }
+    for (i = 1; i <= Math.min(comp.numLayers, comp.numLayers - before + 2); i++) {
+        try { if (Y.u.begins(comp.layer(i).name, "YFX_") || Y.u.begins(comp.layer(i).name, "T_")) { comp.layer(i).enabled = false; } } catch (e2) {}
+    }
+    if (errs.length) {
+        R.ko++;
+        R.lines.push("[\u00c9CHEC] " + title + " : " + errs.length + " erreur(s)");
+        for (i = 0; i < errs.length && i < 8; i++) { R.lines.push("      " + errs[i]); }
+        out = { id: def.id, ok: false, errs: errs, ms: Y.u.ms() - t0 };
+    } else {
+        R.ok++;
+        R.lines.push("[OK] " + title + " (" + (Y.u.ms() - t0) + " ms)");
+        out = { id: def.id, ok: true, ms: Y.u.ms() - t0, msg: msg };
+    }
+    return out;
+};
+
+Y.dev.rxEnd = function () {
+    var R = Y.dev.rx, f, text;
+    if (!R) { return { path: null }; }
+    R.lines.push("");
+    R.lines.push("BILAN : " + R.ok + " OK, " + R.ko + " \u00e9chec(s), " + R.skip + " ignor\u00e9(s) | " + Math.round((Y.u.ms() - R.t0) / 1000) + " s");
+    R.lines.push("Les calques de test de la comp YFX_TEST sont d\u00e9sactiv\u00e9s (oeil) : active-les pour voir le rendu.");
+    text = R.lines.join("\n");
+    f = Y.dev.saveText("autotest_recettes_" + Y.u.stamp(true) + ".txt", text, true);
+    Y.dev.rx = null;
+    Y.log("INFO", "auto-test des recettes : " + R.ok + " OK, " + R.ko + " \u00e9chec(s)");
+    return { path: f ? f.fsName : null, ok: R.ok, ko: R.ko, skip: R.skip, text: f ? null : text };
+};
 // ---- src/85_api.jsx ----
 // =====================================================================
 // API appel\u00e9e par le panel CEP : YFX.api.call("<json>") -> "<json>"
@@ -3586,7 +6052,7 @@ Y.api.context = function () {
     sel = comp.selectedLayers;
     for (i = 0; i < sel.length; i++) {
         L = sel[i];
-        out.push({ name: L.name, kind: Y.l.kind(L), locked: !!L.locked, index: L.index });
+        out.push({ name: L.name, kind: Y.l.kind(L), locked: !!L.locked, index: L.index, mk: Y.m.prop(L) ? Y.m.prop(L).numKeys : 0, d3: !!L.threeDLayer });
     }
     return {
         project: true,
@@ -3606,6 +6072,41 @@ Y.api.cmd = {
     presets: function () {
         return Y.reg.ids();
     },
+    // v1.0 : primitives connues du moteur (un preset du catalogue est pr\u00eat si toutes ses primitives le sont).
+    prims: function () {
+        return Y.prim.ids();
+    },
+    primSchema: function () {
+        return Y.prim.schema();
+    },
+    // Pile de presets (preset perso) : un seul undo group pour tout.
+    applyStack: function (a) {
+        return { msg: Y.rx.stack(a.items || [], a.name || "Preset perso") };
+    },
+    applyPack: function (a) {
+        return { msg: Y.rx.pack(a) };
+    },
+    // Historique du panel : \u00ab Annuler \u00bb = Edit > Undo d'AE (commande 16), une fois.
+    undo: function () {
+        if (!app.project) { Y.fail(Y.MSG.noProject); }
+        app.executeCommand(16);
+        return { msg: "Derni\u00e8re action annul\u00e9e (Edit > Undo)" };
+    },
+    sfxTimes: function (a) {
+        return { msg: Y.audio.placeTimes(String(a.path), a.times || []) };
+    },
+    probe: function () {
+        return Y.dev.probe();
+    },
+    rxTestBegin: function () {
+        return Y.dev.rxBegin();
+    },
+    rxTest: function (a) {
+        return Y.dev.rxTest(a);
+    },
+    rxTestEnd: function (a) {
+        return Y.dev.rxEnd(a);
+    },
     context: function () {
         return Y.api.context();
     },
@@ -3623,6 +6124,7 @@ Y.api.cmd = {
         return { assets: f ? f.fsName : null };
     },
     apply: function (a) {
+        if (a.def && a.def.impl !== "native") { return { msg: Y.rx.exec(a.def, a.params || {}) }; }
         return { msg: Y.exec(String(a.id), a.params || {}) };
     },
     sfx: function (a) {

@@ -99,25 +99,64 @@ const EFFECTS = {
   "ADBE Geometry2": E("Transform", [["Anchor Point", "-0001", [540, 960]], ["Position", "-0002", [540, 960]], ["Uniform Scale", "-0011", 1], ["Scale", "-0003", 100], ["Scale Width", "-0004", 100], ["Skew", "-0005", 0], ["Skew Axis", "-0006", 0], ["Rotation", "-0007", 0], ["Opacity", "-0008", 100], ["Use Composition's Shutter Angle", "-0009", 1], ["Shutter Angle", "-0010", 0], ["Sampling", "-0012", 1]]),
   "ADBE Tile": E("Motion Tile", [["Tile Center", "-0001", [540, 960]], ["Tile Width", "-0002", 100], ["Tile Height", "-0003", 100], ["Output Width", "-0004", 100], ["Output Height", "-0005", 100], ["Mirror Edges", "-0006", 0], ["Phase", "-0007", 0]]),
   "ADBE Exposure2": E("Exposure", [["Channels", "-0001", 1], ["Exposure", "-0003", 0], ["Offset", "-0004", 0], ["Gamma Correction", "-0005", 1]]),
-  "ADBE Box Blur2": E("Fast Box Blur", [["Blur Radius", "-0001", 0], ["Iterations", "-0002", 3]]),
+  "ADBE Box Blur2": E("Fast Box Blur", [["Blur Radius", "-0001", 0], ["Iterations", "-0002", 3], ["Blur Dimensions", "-0003", 1], ["Repeat Edge Pixels", "-0004", 0]]),
   "ADBE Motion Blur": E("Directional Blur", [["Direction", "-0001", 0], ["Blur Length", "-0002", 0]]),
   "CC Radial Fast Blur": E("CC Radial Fast Blur", [["Center", "-0001", [540, 960]], ["Amount", "-0002", 0], ["Zoom", "-0003", 1]]),
   "ADBE Radial Blur": E("Radial Blur", [["Amount", "-0001", 0], ["Center", "-0002", [540, 960]], ["Type", "-0003", 1]]),
   "ADBE Wave Warp": E("Wave Warp", [["Wave Type", "-0001", 1], ["Wave Height", "-0002", 10], ["Wave Width", "-0003", 40], ["Direction", "-0004", 90], ["Wave Speed", "-0005", 1], ["Pinning", "-0006", 1], ["Phase", "-0007", 0]]),
   "ADBE Optics Compensation": E("Optics Compensation", [["Field Of View (FOV)", "-0001", 0], ["Reverse Lens Distortion", "-0002", 0], ["View Center", "-0003", [540, 960]]]),
   "ADBE Posterize Time": E("Posterize Time", [["Frame Rate", "-0001", 24]]),
-  "ADBE Glo2": E("Glow", [["Glow Based On", "-0001", 2], ["Glow Threshold", "-0002", 60], ["Glow Radius", "-0003", 10], ["Glow Intensity", "-0004", 1]]),
+  "ADBE Glo2": E("Glow", [["Glow Based On", "-0001", 2], ["Glow Threshold", "-0002", 60], ["Glow Radius", "-0003", 10], ["Glow Intensity", "-0004", 1], ["Glow Colors", "-0007", 1], ["Color A", "-0012", [1, 1, 1, 1]], ["Color B", "-0013", [0, 0, 0, 1]]]),
   "ADBE Drop Shadow": E("Drop Shadow", [["Shadow Color", "-0001", [0, 0, 0, 1]], ["Opacity", "-0002", 127.5], ["Direction", "-0003", 135], ["Distance", "-0004", 5], ["Softness", "-0005", 0], ["Shadow Only", "-0006", 0]]),
   "ADBE Tint": E("Tint", [["Map Black To", "-0001", [0, 0, 0, 1]], ["Map White To", "-0002", [1, 1, 1, 1]], ["Amount to Tint", "-0003", 100]]),
   "ADBE CHANNEL MIXER": E("Channel Mixer", ["Red-Red", "Red-Green", "Red-Blue", "Red-Const", "Green-Red", "Green-Green", "Green-Blue", "Green-Const", "Blue-Red", "Blue-Green", "Blue-Blue", "Blue-Const"].map((n, i) => [n, "-" + String(i + 1).padStart(4, "0"), /^(Red-Red|Green-Green|Blue-Blue)$/.test(n) ? 100 : 0])),
-  "ADBE Fractal Noise": E("Fractal Noise", [["Contrast", "-0004", 100], ["Brightness", "-0005", 0], ["Scale", "-0010", 100], ["Complexity", "-0015", 6], ["Evolution", "-0023", 0]]),
+  "ADBE Fractal Noise": E("Fractal Noise", [["Noise Type", "-0002", 2], ["Contrast", "-0004", 100], ["Brightness", "-0005", 0], ["Rotation", "-0008", 0], ["Uniform Scaling", "-0009", 1], ["Scale", "-0010", 100], ["Scale Width", "-0011", 100], ["Scale Height", "-0012", 100], ["Complexity", "-0015", 6], ["Evolution", "-0023", 0]]),
   "ADBE Tritone": E("Tritone", [["Highlights", "-0001", [1, 1, 1, 1]], ["Midtones", "-0002", [0.5, 0.5, 0.5, 1]], ["Shadows", "-0003", [0, 0, 0, 1]], ["Blend With Original", "-0004", 0]]),
   "ADBE Noise": E("Noise", [["Amount of Noise", "-0001", 0], ["Noise Type", "-0002", 1], ["Clipping", "-0003", 1]]),
   "ADBE Venetian Blinds": E("Venetian Blinds", [["Transition Completion", "-0001", 0], ["Direction", "-0002", 0], ["Width", "-0003", 10], ["Feather", "-0004", 0]]),
-  "ADBE Lumetri": E("Lumetri Color", [["Temperature", "-0001", 0], ["Tint", "-0002", 0], ["Exposure", "-0003", 0], ["Contrast", "-0004", 0], ["Highlights", "-0005", 0], ["Shadows", "-0006", 0], ["Saturation", "-0007", 100], ["Vibrance", "-0008", 0]]),
+  "ADBE Lumetri": E("Lumetri Color", [["Temperature", "-0001", 0], ["Tint", "-0002", 0], ["Exposure", "-0003", 0], ["Contrast", "-0004", 0], ["Highlights", "-0005", 0], ["Shadows", "-0006", 0], ["Saturation", "-0007", 100], ["Vibrance", "-0008", 0], ["Whites", "-0009", 0], ["Blacks", "-0010", 0], ["Faded Film", "-0011", 0], ["Sharpen", "-0012", 0]]),
   "ADBE Ramp": E("Gradient Ramp", [["Start of Ramp", "-0001", [0, 0]], ["Start Color", "-0002", [0, 0, 0, 1]], ["End of Ramp", "-0003", [100, 0]], ["End Color", "-0004", [1, 1, 1, 1]], ["Ramp Shape", "-0005", 1]]),
   "PEDG": E("Deep Glow", [["Radius", "-0001", 100]]),
   "ADBE Grid": E("Grid", [["Anchor", "-0001", [0, 0]], ["Size From", "-0002", 2], ["Corner", "-0003", [100, 100]], ["Width", "-0004", 50], ["Height", "-0005", 50], ["Border", "-0006", 1], ["Color", "-0009", [1, 1, 1, 1]]]),
+  // v1.0 : effets des primitives (noms et matchNames supposés, à confirmer par la sonde dans AE)
+  "ADBE Gaussian Blur 2": E("Gaussian Blur", [["Blurriness", "-0001", 0], ["Blur Dimensions", "-0002", 1], ["Repeat Edge Pixels", "-0003", 0]]),
+  "ADBE Echo": E("Echo", [["Echo Time (seconds)", "-0001", -0.033], ["Number Of Echoes", "-0002", 1], ["Starting Intensity", "-0003", 1], ["Decay", "-0004", 1], ["Echo Operator", "-0005", 1]]),
+  "ADBE Invert": E("Invert", [["Channel", "-0001", 1], ["Blend With Original", "-0002", 0]]),
+  "ADBE Easy Levels2": E("Levels", [["Channel", "-0001", 1], ["Input Black", "-0003", 0], ["Input White", "-0004", 1], ["Gamma", "-0005", 1], ["Output Black", "-0006", 0], ["Output White", "-0007", 1]]),
+  "ADBE HUE SATURATION": E("Hue/Saturation", [["Channel Control", "-0001", 1], ["Master Hue", "-0003", 0], ["Master Saturation", "-0004", 0], ["Master Lightness", "-0005", 0], ["Colorize", "-0006", 0], ["Colorize Hue", "-0007", 0], ["Colorize Saturation", "-0008", 25], ["Colorize Lightness", "-0009", 0]]),
+  "ADBE Color Balance 2": E("Color Balance", ["Shadow Red Balance", "Shadow Green Balance", "Shadow Blue Balance", "Midtone Red Balance", "Midtone Green Balance", "Midtone Blue Balance", "Hilight Red Balance", "Hilight Green Balance", "Hilight Blue Balance", "Preserve Luminosity"].map((n, i) => [n, "-" + String(i + 1).padStart(4, "0"), 0])),
+  "ADBE Leave Color": E("Leave Color", [["Amount to Decolor", "-0001", 0], ["Color To Leave", "-0002", [1, 0, 0, 1]], ["Tolerance", "-0003", 15], ["Edge Softness", "-0004", 0], ["Match Colors", "-0005", 1]]),
+  "CC Light Rays": E("CC Light Rays", [["Intensity", "-0001", 100], ["Center", "-0002", [540, 960]], ["Radius", "-0003", 40]]),
+  "ADBE Lens Flare": E("Lens Flare", [["Flare Center", "-0001", [540, 960]], ["Flare Brightness", "-0002", 100], ["Lens Type", "-0003", 1], ["Blend With Original", "-0004", 0]]),
+  "ADBE Unsharp Mask2": E("Unsharp Mask", [["Amount", "-0001", 50], ["Radius", "-0002", 1], ["Threshold", "-0003", 0]]),
+  "ADBE Bulge": E("Bulge", [["Horizontal Radius", "-0001", 50], ["Vertical Radius", "-0002", 50], ["Bulge Center", "-0003", [540, 960]], ["Bulge Height", "-0004", 1]]),
+  "ADBE Spherize": E("Spherize", [["Radius", "-0001", 0], ["Center of Sphere", "-0002", [540, 960]]]),
+  "ADBE Turbulent Displace": E("Turbulent Displace", [["Displacement", "-0001", 1], ["Amount", "-0002", 50], ["Size", "-0003", 100], ["Offset (Turbulence)", "-0004", [540, 960]], ["Complexity", "-0005", 1], ["Evolution", "-0006", 0]]),
+  "ADBE Twirl": E("Twirl", [["Angle", "-0001", 0], ["Twirl Radius", "-0002", 30], ["Twirl Center", "-0003", [540, 960]]]),
+  "ADBE Ripple": E("Ripple", [["Radius", "-0001", 50], ["Center of Ripple", "-0002", [540, 960]], ["Type of Conversion", "-0003", 1], ["Wave Speed", "-0004", 1], ["Wave Width", "-0005", 40], ["Wave Height", "-0006", 20], ["Ripple Phase", "-0007", 0]]),
+  "ADBE Mosaic": E("Mosaic", [["Horizontal Blocks", "-0001", 10], ["Vertical Blocks", "-0002", 10], ["Sharp Colors", "-0003", 0]]),
+  "ADBE Posterize": E("Posterize", [["Level", "-0001", 6]]),
+  "ADBE Threshold2": E("Threshold", [["Level", "-0001", 128]]),
+  "ADBE Find Edges": E("Find Edges", [["Invert", "-0001", 0], ["Blend With Original", "-0002", 0]]),
+  "CC Ball Action": E("CC Ball Action", [["Scatter", "-0001", 0], ["Rotation Axis", "-0002", 1], ["Rotation", "-0003", 0], ["Twist Angle", "-0004", 0], ["Grid Spacing", "-0005", 5], ["Ball Size", "-0006", 100]]),
+  "ADBE Mirror": E("Mirror", [["Reflection Center", "-0001", [540, 960]], ["Reflection Angle", "-0002", 0]]),
+  "CC Kaleida": E("CC Kaleida", [["Center", "-0001", [540, 960]], ["Size", "-0002", 30], ["Mirroring", "-0003", 1], ["Rotation", "-0004", 0]]),
+  "ADBE Polar Coordinates": E("Polar Coordinates", [["Interpolation", "-0001", 0], ["Type of Conversion", "-0002", 1]]),
+  "ADBE Shift Channels": E("Shift Channels", [["Take Alpha From", "-0001", 1], ["Take Red From", "-0002", 2], ["Take Green From", "-0003", 3], ["Take Blue From", "-0004", 4]]),
+  "ADBE Set Channels": E("Set Channels", [["Source Layer 1", "-0001", 0]]),
+  "ADBE Fill": E("Fill", [["Fill Mask", "-0001", 0], ["All Masks", "-0002", 0], ["Color", "-0003", [1, 0, 0, 1]], ["Invert", "-0004", 0], ["Opacity", "-0007", 1]]),
+  "ADBE Linear Wipe": E("Linear Wipe", [["Transition Completion", "-0001", 0], ["Wipe Angle", "-0002", 90], ["Feather", "-0003", 0]]),
+  "ADBE Radial Wipe": E("Radial Wipe", [["Transition Completion", "-0001", 0], ["Start Angle", "-0002", 0], ["Wipe Center", "-0003", [540, 960]], ["Wipe", "-0004", 1], ["Feather", "-0005", 0]]),
+  "ADBE Block Dissolve": E("Block Dissolve", [["Transition Completion", "-0001", 0], ["Block Width", "-0002", 10], ["Block Height", "-0003", 10], ["Feather", "-0004", 0]]),
+  "ADBE Gradient Wipe": E("Gradient Wipe", [["Transition Completion", "-0001", 0], ["Transition Softness", "-0002", 0], ["Gradient Layer", "-0003", 0]]),
+  "CC Grid Wipe": E("CC Grid Wipe", [["Completion", "-0001", 0], ["Center", "-0002", [540, 960]]]),
+  "ADBE Displacement Map": E("Displacement Map", [["Displacement Map Layer", "-0001", 0], ["Use For Horizontal Displacement", "-0002", 1], ["Max Horizontal Displacement", "-0003", 5], ["Use For Vertical Displacement", "-0004", 2], ["Max Vertical Displacement", "-0005", 5]]),
+  "CC Cylinder": E("CC Cylinder", [["Radius (%)", "-0001", 50], ["Rotation X", "-0005", 0], ["Rotation Y", "-0006", 0], ["Rotation Z", "-0007", 0]]),
+  "CC Sphere": E("CC Sphere", [["Rotation X", "-0001", 0], ["Rotation Y", "-0002", 0], ["Rotation Z", "-0003", 0], ["Radius", "-0004", 100]]),
+  "ADBE Bevel Alpha": E("Bevel Alpha", [["Edge Thickness", "-0001", 2], ["Light Angle", "-0002", -60], ["Light Color", "-0003", [1, 1, 1, 1]], ["Light Intensity", "-0004", 0.4]]),
+  "CC Light Sweep": E("CC Light Sweep", [["Center", "-0001", [540, 960]], ["Direction", "-0002", -30], ["Width", "-0004", 50], ["Sweep Intensity", "-0005", 50]]),
+  "CC Particle World": E("CC Particle World", [["Birth Rate", "-0001", 1], ["Longevity (sec)", "-0002", 1], ["Gravity", "-0003", 0.5], ["Velocity", "-0004", 1], ["Radius X", "-0005", 0.025], ["Radius Y", "-0006", 0.025], ["Birth Color", "-0007", [1, 1, 0, 1]], ["Death Color", "-0008", [1, 0, 0, 1]]]),
+  "CC Star Burst": E("CC Star Burst", [["Scatter", "-0001", 100], ["Speed", "-0002", 1], ["Phase", "-0003", 0], ["Grid Spacing", "-0004", 5], ["Size", "-0005", 100]]),
 };
 const makeEffect = (mn, probe) => {
   const def = EFFECTS[mn];
@@ -131,6 +170,7 @@ const TEXT_PROPS = {
   "ADBE Text Scale 3D": ["Scale", [100, 100, 100]], "ADBE Text Opacity": ["Opacity", 100], "ADBE Text Position 3D": ["Position", [0, 0, 0]],
   "ADBE Text Blur": ["Blur", [0, 0]], "ADBE Text Rotation X": ["X Rotation", 0], "ADBE Text Tracking Amount": ["Tracking Amount", 0],
   "ADBE Text Character Offset": ["Character Offset", 0], "ADBE Text Fill Color": ["Fill Color", [1, 0, 0, 1]],
+  "ADBE Text Rotation": ["Rotation", 0], "ADBE Text Rotation Y": ["Y Rotation", 0], "ADBE Text Skew": ["Skew", 0],
 };
 const makeAnimator = (mn, probe) => {
   if (mn !== "ADBE Text Animator") return null;
@@ -149,21 +189,22 @@ const makeAnimator = (mn, probe) => {
   return new Group("Animator 1", mn, null, false).push(sels).push(props);
 };
 const makeVector = (mn, probe) => {
-  const ok2 = ["ADBE Vector Group", "ADBE Vector Shape - Rect", "ADBE Vector Shape - Ellipse", "ADBE Vector Graphic - Fill"].includes(mn);
+  const ok2 = ["ADBE Vector Group", "ADBE Vector Shape - Rect", "ADBE Vector Shape - Ellipse", "ADBE Vector Graphic - Fill", "ADBE Vector Graphic - Stroke"].includes(mn);
   if (!ok2) return null;
   if (probe) return true;
   if (mn === "ADBE Vector Group") {
     return new Group("Group 1", mn, null, false).push(new Group("Contents", "ADBE Vectors Group", makeVector, true))
-      .push(new Group("Transform: Group 1", "ADBE Vector Transform Group", null, false).push(P2("Position", "ADBE Vector Position", [0, 0])).push(P2("Scale", "ADBE Vector Scale", [100, 100])));
+      .push(new Group("Transform: Group 1", "ADBE Vector Transform Group", null, false).push(P2("Position", "ADBE Vector Position", [0, 0])).push(P2("Scale", "ADBE Vector Scale", [100, 100])).push(new Prop("Rotation", "ADBE Vector Rotation", 0)).push(new Prop("Opacity", "ADBE Vector Group Opacity", 100)));
   }
   if (mn === "ADBE Vector Shape - Rect") return new Group("Rectangle Path 1", mn, null, false).push(P2("Size", "ADBE Vector Rect Size", [100, 100])).push(P2("Position", "ADBE Vector Rect Position", [0, 0])).push(new Prop("Roundness", "ADBE Vector Rect Roundness", 0));
   if (mn === "ADBE Vector Shape - Ellipse") return new Group("Ellipse Path 1", mn, null, false).push(P2("Size", "ADBE Vector Ellipse Size", [100, 100])).push(P2("Position", "ADBE Vector Ellipse Position", [0, 0]));
+  if (mn === "ADBE Vector Graphic - Stroke") return new Group("Stroke 1", mn, null, false).push(P2("Color", "ADBE Vector Stroke Color", [1, 1, 1, 1])).push(new Prop("Stroke Width", "ADBE Vector Stroke Width", 2));
   return new Group("Fill 1", mn, null, false).push(P2("Color", "ADBE Vector Fill Color", [1, 1, 1, 1]));
 };
 const makeMask = (mn, probe) => {
   if (mn !== "ADBE Mask Atom") return null;
   if (probe) return true;
-  const g = new Group("Mask 1", mn, null, false).push(new Prop("Mask Path", "ADBE Mask Shape", null, PVT.SHAPE)).push(P2("Mask Feather", "ADBE Mask Feather", [0, 0]));
+  const g = new Group("Mask 1", mn, null, false).push(new Prop("Mask Path", "ADBE Mask Shape", null, PVT.SHAPE)).push(P2("Mask Feather", "ADBE Mask Feather", [0, 0])).push(new Prop("Mask Expansion", "ADBE Mask Offset", 0));
   g.maskMode = 1;
   return g;
 };
@@ -203,7 +244,11 @@ class AVLayer {
       .push(new Group("Masks", "ADBE Mask Parade", makeMask, true))
       .push(new Group("Effects", "ADBE Effect Parade", makeEffect, true))
       .push(new Group("Transform", "ADBE Transform Group", null, false)
-        .push(P2("Position", "ADBE Position", [540, 960, 0])).push(P2("Scale", "ADBE Scale", [100, 100, 100])).push(new Prop("Opacity", "ADBE Opacity", 100)));
+        .push(P2("Anchor Point", "ADBE Anchor Point", [540, 960, 0])).push(P2("Position", "ADBE Position", [540, 960, 0])).push(P2("Scale", "ADBE Scale", [100, 100, 100]))
+        .push(P2("Orientation", "ADBE Orientation", [0, 0, 0])).push(new Prop("X Rotation", "ADBE Rotate X", 0)).push(new Prop("Y Rotation", "ADBE Rotate Y", 0)).push(new Prop("Z Rotation", "ADBE Rotate Z", 0))
+        .push(new Prop("Opacity", "ADBE Opacity", 100)));
+    this.width = source && source.width ? source.width : comp.width;
+    this.height = source && source.height ? source.height : comp.height;
   }
   property(x) { return this.root.property(x); }
   get numProperties() { return this.root.numProperties; }
@@ -211,6 +256,14 @@ class AVLayer {
   moveBefore(o) { const l = this.comp.list; l.splice(l.indexOf(this), 1); l.splice(l.indexOf(o), 0, this); }
   moveAfter(o) { const l = this.comp.list; l.splice(l.indexOf(this), 1); l.splice(l.indexOf(o) + 1, 0, this); }
   remove() { this.comp.list.splice(this.comp.list.indexOf(this), 1); }
+  // copie « propre » (sans effets) placée juste au-dessus, comme Layer.duplicate() sur un calque neuf
+  duplicate() {
+    const d = this instanceof TextLayer ? new TextLayer(this.name, this.comp, this.property("ADBE Text Properties").property("ADBE Text Document").value.text) : new AVLayer(this.name, this.comp, this.source);
+    for (const k of ["inPoint", "outPoint", "startTime", "adjustmentLayer", "hasAudio", "hasVideo", "threeDLayer", "canSetTimeRemapEnabled", "width", "height"]) d[k] = this[k];
+    const l = this.comp.list;
+    l.splice(l.indexOf(this), 0, d);
+    return d;
+  }
   sourceRectAtTime() { return { left: -200, top: -60, width: 400, height: 80 }; }
 }
 class TextLayer extends AVLayer {
@@ -224,9 +277,20 @@ class TextLayer extends AVLayer {
 class ShapeLayer extends AVLayer {
   constructor(comp) { super("Shape Layer 1", comp); this.root.push(new Group("Contents", "ADBE Root Vectors Group", makeVector, true)); }
 }
-class CameraLayer {}
+class CameraLayer extends AVLayer {
+  constructor(name, comp) {
+    super(name, comp);
+    this.root = new Group(name, "ADBE Camera Layer", null, false)
+      .push(new Prop("Marker", "ADBE Marker", null, PVT.MARKER))
+      .push(new Group("Transform", "ADBE Transform Group", null, false)
+        .push(P2("Point of Interest", "ADBE Anchor Point", [540, 960, 0])).push(P2("Position", "ADBE Position", [540, 960, -1500]))
+        .push(P2("Orientation", "ADBE Orientation", [0, 0, 0])).push(new Prop("X Rotation", "ADBE Rotate X", 0)).push(new Prop("Y Rotation", "ADBE Rotate Y", 0)).push(new Prop("Z Rotation", "ADBE Rotate Z", 0)))
+      .push(new Group("Camera Options", "ADBE Camera Options Group", null, false).push(new Prop("Zoom", "ADBE Camera Zoom", 1500)));
+  }
+}
 class LightLayer {}
 class CompItem extends Item {
+  openInViewer() { return null; }
   constructor(name, w, h, dur, fps) {
     super(name);
     Object.assign(this, { width: w || 1080, height: h || 1920, frameRate: fps || 60, frameDuration: 1 / (fps || 60), duration: dur || 10, time: 1, pixelAspect: 1, list: [],
@@ -237,6 +301,8 @@ class CompItem extends Item {
       addSolid(color, name, w, h) { const src = new FootageItem(name, w, h, new SolidSource(color)); proj.items._all.push(src); const L = new AVLayer(name, comp, src); comp.list.unshift(L); return L; },
       addText(t) { const L = new TextLayer(t, comp, t); comp.list.unshift(L); return L; },
       addShape() { const L = new ShapeLayer(comp); comp.list.unshift(L); return L; },
+      addNull() { const L = new AVLayer("Null 1", comp, null); L.nullLayer = true; comp.list.unshift(L); return L; },
+      addCamera(name) { const L = new CameraLayer(name, comp); comp.list.unshift(L); return L; },
     };
     this.selectedProperties = [];
   }
@@ -301,7 +367,8 @@ const app = {
 };
 const sb = {
   app, File, Folder, Shape, PropertyType, PropertyValueType: PVT, MarkerValue, KeyframeEase, KeyframeInterpolationType: { LINEAR: 1, BEZIER: 2, HOLD: 3 },
-  ParagraphJustification: { CENTER_JUSTIFY: 1, RIGHT_JUSTIFY: 2 }, BlendingMode: { NORMAL: 1, LIGHTEN: 2, OVERLAY: 3, SCREEN: 4, ADD: 5 },
+  ParagraphJustification: { CENTER_JUSTIFY: 1, RIGHT_JUSTIFY: 2, LEFT_JUSTIFY: 3 },
+  BlendingMode: { NORMAL: 1, LIGHTEN: 2, OVERLAY: 3, SCREEN: 4, ADD: 5, MULTIPLY: 6, DIFFERENCE: 7, COLOR: 8, SOFT_LIGHT: 9, HARD_LIGHT: 10, COLOR_DODGE: 11 },
   MaskMode: { ADD: 1, SUBTRACT: 2 }, FrameBlendingType: { NO_FRAME_BLEND: 0, PIXEL_MOTION: 2 },
   CompItem, FolderItem, FootageItem, SolidSource, AVLayer, TextLayer, ShapeLayer, CameraLayer, LightLayer, ImportOptions,
   timeToCurrentFormat: (t) => "0:00:" + t.toFixed(2),
@@ -326,6 +393,7 @@ const layerApi = (layer) => {
   return {
     marker: markerApi(layer), inPoint: layer.inPoint, outPoint: layer.outPoint, startTime: layer.startTime,
     source: { duration: 20 }, sourceRectAtTime: () => layer.sourceRectAtTime(),
+    transform: { get position() { const t = layer.property("ADBE Transform Group"); return t && t.property("ADBE Position") ? t.property("ADBE Position").value : [0, 0]; } },
     effect: (name) => { const e = fx.property(name); if (!e) throw new Error("effet introuvable dans l'expression : " + name); return (i) => e.property(i).value; },
   };
 };
@@ -372,7 +440,7 @@ const deselect = () => comp.list.forEach((l) => { l.selected = false; });
 
 console.log("\n1. API de base");
 let r = api("ping");
-ok(r.ok && r.data.version === "0.6.0", "ping : moteur v" + (r.data && r.data.version));
+ok(r.ok && r.data.version === "1.0.0", "ping : moteur v" + (r.data && r.data.version));
 r = api("presets");
 const ids = r.data || [];
 ok(r.ok && ids.length >= 73 && !ids.includes("dev_throw"), `presets disponibles : ${ids.length}`);
@@ -536,6 +604,179 @@ ok(r.ok && /Clip_ace/.test(r.data.source) && r2.ok && !proj.items._all.some((it)
 api("pvEnd", {});
 userRq.remove();
 ok(S.undo === 0 && S.alerts.length === 0, "undo groups équilibrés et aucune boîte de dialogue après les previews");
+
+// ------------------------------------------------------------------ v1.0 : recettes du catalogue
+console.log("\n6. Recettes du catalogue (v1.0)");
+const catWin = {};
+vm.runInNewContext(readFileSync(join(ROOT, "cep", "js", "catalog.data.js"), "utf8"), { window: catWin });
+const CATALOG = catWin.YX.catalogData;
+const CURVES = vm.runInContext("YFX.rx.CURVES", ctx);
+const curveOf = (id) => { const b = CURVES[id || "back"] || CURVES.back; return { b: Array.from(b), special: id === "elastic", name: id || "back" }; };
+r = api("prims");
+ok(r.ok && r.data.length >= 50, `${r.data.length} primitives déclarées par le moteur`);
+const primIds = new Set(r.data);
+const recipes = CATALOG.presets.filter((p) => p.impl !== "native" && !p.tool);
+ok(recipes.every((p) => p.recipe.every((s) => primIds.has(s.p))), "toutes les primitives du catalogue existent dans le moteur");
+
+// Scène neuve par test : texte (avec markers), 2 clips (le 2e a des images avant sa coupe), musique avec beats.
+const makeScene = (name) => {
+  const c = new CompItem(name, 1080, 1920, 10, 60);
+  const t = new TextLayer("TITRE", c, "HEADSHOT ACE");
+  const a = new AVLayer("Clip_A.mp4", c, new FootageItem("Clip_A.mp4", 1080, 1920));
+  const b = new AVLayer("Clip_B.mp4", c, new FootageItem("Clip_B.mp4", 1080, 1920));
+  const m = new AVLayer("beat.wav", c, new FootageItem("beat.wav", 0, 0, null, new File("C:/assets/beat.wav")));
+  a.outPoint = 3; b.inPoint = 3; b.startTime = 0;
+  m.hasAudio = true; m.hasVideo = false;
+  [1, 1.5, 2.2].forEach((tm) => t.property("ADBE Marker").setValueAtTime(tm, new MarkerValue("")));
+  [0.5, 1, 1.5].forEach((tm) => m.property("ADBE Marker").setValueAtTime(tm, new MarkerValue("beat")));
+  c.list.push(t, a, b, m);
+  proj.items._all.push(c);
+  proj.activeItem = c;
+  return { c, t, a, b, m };
+};
+const selFor = (def, sc, mode) => {
+  const sel = def.needs.sel;
+  if (def.host === "two" || sel === "two") return [sc.a, sc.b];
+  if (sel === "text" || def.host === "text") return [sc.t];
+  if (sel === "av" || sel === "layer" || def.host === "clip" || def.host === "layer") return [sc.a];
+  if (def.needs.layers3d) return [sc.a, sc.b];
+  if (mode === "clip") return [sc.a];
+  if (mode === "beats") return [sc.m];
+  return [];
+};
+const TIMES = [0, 0.4, 1, 1.05, 1.1, 1.3, 2, 2.4, 2.9, 3, 3.05, 3.2, 4, 6];
+const rxFail = [];
+let rxApplied = 0, rxExpr = 0, rxMoving = 0, rxAnimated = 0;
+const runRecipe = (def, mode) => {
+  const sc = makeScene("RX_" + def.id + "_" + mode);
+  sc.c.list.forEach((l) => { l.selected = false; });
+  selFor(def, sc, mode).forEach((l) => { l.selected = true; });
+  sc.c.time = (def.host === "two") ? sc.b.inPoint : 1;
+  const d = def.defaults || {};
+  const params = { frames: d.frames === "loop" ? 0 : (d.frames || 12), intensity: 1, curve: curveOf(d.curve), dir: d.dir || "in", by: d.by || "car" };
+  const before = S.undo;
+  let res = api("apply", { id: def.id, def, params });
+  if (!res.ok) { rxFail.push(`${def.id} [${mode}] → ${res.error}`); return; }
+  if (def.drive === "marker" && def.host !== "two") {
+    sc.c.time = 2.4;
+    res = api("apply", { id: def.id, def, params });
+    if (!res.ok) { rxFail.push(`${def.id} [${mode}, 2e clic] → ${res.error}`); return; }
+  }
+  if (S.undo !== before) rxFail.push(`${def.id} [${mode}] → undo group non refermé`);
+  rxApplied++;
+  let moving = 0, animated = 0;
+  for (const { layer, prop } of allExprProps(sc.c)) {
+    rxExpr++;
+    try { checkSyntax(prop.expression); } catch (e) { rxFail.push(`${def.id} [${mode}] ${layer.name} > ${prop.name} : syntaxe ${e.message}`); continue; }
+    const seen = new Set();
+    for (const t of TIMES) {
+      let v;
+      try { v = evalExpr(prop, layer, sc.c, t); } catch (e) { rxFail.push(`${def.id} [${mode}] ${layer.name} > ${prop.name} @${t}s : ${e.message}`); break; }
+      if (!validResult(v)) { rxFail.push(`${def.id} [${mode}] ${layer.name} > ${prop.name} @${t}s : résultat ${JSON.stringify(v)}`); break; }
+      seen.add(JSON.stringify(v));
+    }
+    if (/yfxEnv|time|wiggle|random/.test(prop.expression)) { animated++; if (seen.size > 1) moving++; }
+  }
+  // un preset animé (hors looks figés) doit produire au moins une valeur qui change dans le temps
+  if (def.drive !== "static" && def.drive !== "loop" && animated && !moving) rxFail.push(`${def.id} [${mode}] : aucune expression ne varie dans le temps`);
+  rxMoving += moving; rxAnimated += animated;
+  proj.items._all.splice(proj.items._all.indexOf(sc.c), 1);
+};
+for (const def of recipes) {
+  runRecipe(def, "base");
+  if (def.host === "any" && def.drive === "marker") { runRecipe(def, "clip"); runRecipe(def, "beats"); }
+  if (def.host === "any" && def.drive === "loop") runRecipe(def, "clip");
+}
+ok(rxFail.length === 0, `${recipes.length} recettes : ${rxApplied} applications (sans sélection, sur un clip, sur les beats), ${rxExpr} expressions évaluées à ${TIMES.length} instants (${rxMoving} / ${rxAnimated} animées varient)` +
+  (rxFail.length ? "\n      " + rxFail.slice(0, 25).join("\n      ") + (rxFail.length > 25 ? `\n      … ${rxFail.length - 25} de plus` : "") : ""));
+
+// Quelques comportements précis
+{
+  const sc = makeScene("RX_check");
+  const def = CATALOG.presets.find((p) => p.id === "imp-manga-frame");
+  sc.c.time = 1;
+  r = api("apply", { id: def.id, def, params: { frames: 12, intensity: 1, curve: curveOf("snap") } });
+  const L = sc.c.layer("YFX_MangaImpactFrame");
+  const gate = sc.c.list.find((l) => /^YFX_MangaImpactFrame_Ink/.test(l.name));
+  const op = gate && gate.property("ADBE Transform Group").property("ADBE Opacity");
+  ok(r.ok && L && L.adjustmentLayer && gate && near(evalExpr(op, gate, sc.c, 1 + fd), 100, 0.01) && near(evalExpr(op, gate, sc.c, 1 + 6 * fd), 0, 0.01) && near(evalExpr(op, gate, sc.c, 0.9), 0, 0.01),
+    "Impact frame manga : calque porte du seuil N&B à 100 % pendant 4 images après le marker, 0 % avant et après");
+  const sc2 = makeScene("RX_two");
+  const w = CATALOG.presets.find((p) => p.id === "trn-wipe-linear");
+  sc2.a.selected = true; sc2.b.selected = true; sc2.c.time = 3;
+  r = api("apply", { id: w.id, def: w, params: { frames: 12, intensity: 1, curve: curveOf("expo") } });
+  const comp2 = sc2.b.property("ADBE Effect Parade").property(1) && sc2.b.property("ADBE Effect Parade").children.find((e) => e.matchName === "ADBE Linear Wipe");
+  const tc = comp2 && comp2.property("Transition Completion");
+  ok(r.ok && near(sc2.b.inPoint, 3 - 12 * fd, 1e-6) && sc2.b.index < sc2.a.index && tc && near(evalExpr(tc, sc2.b, sc2.c, 3 - 12 * fd), 100, 0.5) && near(evalExpr(tc, sc2.b, sc2.c, 3.01), 0, 0.5),
+    "Volet : plan entrant rallongé de 12 images avant la coupe, placé au-dessus, volet 100 % -> 0 % à la coupe");
+  const sc3 = makeScene("RX_twoKO");
+  sc3.b.startTime = 3;
+  sc3.a.selected = true; sc3.b.selected = true; sc3.c.time = 3;
+  r = api("apply", { id: w.id, def: w, params: { frames: 12, intensity: 1 } });
+  ok(!r.ok && r.user && /n'a pas 12 images avant sa coupe/.test(r.error), "Volet sans images avant la coupe : message clair (" + (r.error || "").slice(0, 70) + "…)");
+  const bad = JSON.parse(JSON.stringify(def));
+  bad.recipe[0].kind = "nimporte";
+  r = api("apply", { id: bad.id, def: bad, params: {} });
+  ok(!r.ok && r.user && /kind/.test(r.error), "recette invalide refusée avant de toucher au projet : " + r.error);
+  const st = api("applyStack", { name: "Combo test", items: [{ id: "killhit", params: { frames: 8 } }, { id: def.id, def, params: { frames: 12 } }] });
+  ok(st.ok && /2 preset/.test(st.data.msg), "pile de presets : 2 presets en un seul undo group");
+  // pack de style : 3 clips + musique (3 beats), sons de coupe et de beat
+  const sc4 = makeScene("RX_pack");
+  const c3 = new AVLayer("Clip_C.mp4", sc4.c, new FootageItem("Clip_C.mp4", 1080, 1920));
+  sc4.b.outPoint = 5; c3.inPoint = 5; c3.startTime = 0;
+  sc4.c.list.push(c3);
+  [sc4.a, sc4.b, c3, sc4.m].forEach((l) => { l.selected = true; });
+  S.files.set("C:/assets/sfx/whoosh/whoosh.wav", "RIFF");
+  const PK = CATALOG.packs[0], pd = (id) => CATALOG.presets.find((p) => p.id === id);
+  const nLayers = sc4.c.list.length;
+  const before = S.undoLog.length;
+  r = api("applyPack", { name: PK.name, look: pd(PK.look), cut: pd(PK.cut), beat: pd(PK.beat), sfx: { cut: "C:/assets/sfx/whoosh/whoosh.wav", beat: "C:/assets/sfx/impact/impact_02.wav" }, params: { intensity: 1, curve: curveOf("expo") } });
+  const sfxL = sc4.c.list.filter((l) => l.source && /whoosh\.wav|impact_02\.wav/.test(l.source.name || ""));
+  ok(r.ok && sfxL.length === 5 && sc4.c.list.length > nLayers + 5 && S.undoLog.length - before === 1 && /5 son/.test(r.data.msg),
+    `pack ${PK.name} : look + 2 coupes + 3 beats + 5 sons en un seul undo group (${r.ok ? r.data.msg : r.error})`);
+}
+// Previews des recettes : une par combinaison (hôte, sélection, mise en scène, calques 3D)
+{
+  proj.activeItem = comp;
+  deselect();
+  const combos = new Map();
+  for (const d of recipes) {
+    const k = [d.host, d.needs.sel, d.preview && d.preview.kind, d.needs.layers3d || 0].join("|");
+    if (!combos.has(k) && !(d.preview && d.preview.kind === "none") && d.needs.sel !== "audio") combos.set(k, d);
+  }
+  r = api("pvBegin");
+  const bad = [];
+  for (const d of combos.values()) {
+    const kind = d.preview && d.preview.kind;
+    const res = api("pvRender", { id: d.id, def: d, kind, word: (d.preview && d.preview.word) || "ACE", params: { frames: 12, intensity: 1, curve: curveOf(d.defaults && d.defaults.curve) } });
+    if (!res.ok) bad.push(d.id + " → " + res.error);
+    else if (!S.files.get(norm(res.data.file))) bad.push(d.id + " → pas de fichier");
+    else if (proj.items._all.some((it) => it.name === "YFX_PV_" + d.id)) bad.push(d.id + " → comp non supprimée");
+  }
+  const end = api("pvEnd", {});
+  ok(r.ok && end.ok && bad.length === 0 && !proj.items._all.some(isPv), `previews des recettes : ${combos.size} combinaisons hôte / sélection / mise en scène rendues puis nettoyées` + (bad.length ? "\n      " + bad.slice(0, 10).join("\n      ") : ""));
+}
+// Auto-test complet tel que le panel le pilote : tous les presets du catalogue, un par un, dans YFX_TEST
+{
+  r = api("rxTestBegin");
+  if (!r.ok) console.log("      rxTestBegin : " + r.error);
+  const fails = [];
+  let nOk = 0, nSkip = 0;
+  for (const d of CATALOG.presets) {
+    const def = d.impl === "native" ? { id: d.id, impl: "native", name: d.name, host: d.host, needs: d.needs, tool: !!d.tool } : Object.assign({}, d, { impl: "recipe" });
+    const dd = d.defaults || {};
+    const res = api("rxTest", { def, params: { frames: dd.frames === "loop" ? 0 : (dd.frames || 12), intensity: 1, curve: curveOf(dd.curve), dir: "in", by: dd.by || "car" } });
+    if (!res.ok) fails.push(d.id + " → " + res.error);
+    else if (res.data.skip) nSkip++;
+    else if (!res.data.ok) fails.push(d.id + " → " + res.data.errs.slice(0, 2).join(" | "));
+    else nOk++;
+  }
+  const end = api("rxTestEnd");
+  const rep = end.ok && end.data.path && S.files.get(norm(end.data.path));
+  ok(r.ok && end.ok && fails.length === 0 && rep && /BILAN : \d+ OK, 0 échec/.test(rep),
+    `auto-test complet (mocks) : ${nOk} OK, ${nSkip} ignoré(s) (audio, outils), rapport écrit` + (fails.length ? "\n      " + fails.slice(0, 12).join("\n      ") + (fails.length > 12 ? `\n      … ${fails.length - 12} de plus` : "") : ""));
+}
+ok(S.undo === 0 && S.alerts.length === 0, "v1.0 : undo groups équilibrés, aucune boîte de dialogue");
 
 console.log(failures ? `\nECHEC : ${failures} test(s) en échec\n` : "\nOK : moteur validé (mocks)\n");
 process.exit(failures ? 1 : 0);

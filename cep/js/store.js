@@ -87,6 +87,19 @@
     previewCache.set(id, found);
     return found;
   };
+  // Image fixe (WebP) générée avec la vidéo : affiche de la vidéo, ou aperçu de repli s'il n'y a pas de vidéo.
+  const posterUrl = (id) => {
+    if (!fs) return null;
+    const k = id + '#webp';
+    if (previewCache.has(k)) return previewCache.get(k);
+    let found = null;
+    for (const d of previewDirs()) {
+      const f = path.join(d, id + '.webp');
+      try { if (fs.existsSync(f)) { found = fileUrl(f) + '?v=' + Math.round(fs.statSync(f).mtimeMs); break; } } catch (e) { /* ignore */ }
+    }
+    previewCache.set(k, found);
+    return found;
+  };
   const clearPreviews = () => previewCache.clear();
   // Dossier où écrire les previews générées (créé au besoin) ; noCreate : juste le chemin s'il existe.
   const previewDir = (noCreate) => {
@@ -113,5 +126,5 @@
     try { cp.exec('explorer "' + String(p).replace(/\//g, '\\') + '"'); return true; } catch (e) { return false; }
   };
 
-  YX.store = { hasNode: !!fs, userDir, load, save, setAssets, listSfx, sfxRoot, previewUrl, clearPreviews, previewDir, canMp4, open, fileUrl, devAssets, readFile: (f) => (fs ? fs.readFileSync(f) : null) };
+  YX.store = { hasNode: !!fs, userDir, load, save, setAssets, listSfx, sfxRoot, previewUrl, posterUrl, clearPreviews, previewDir, canMp4, open, fileUrl, devAssets, readFile: (f) => (fs ? fs.readFileSync(f) : null) };
 })();

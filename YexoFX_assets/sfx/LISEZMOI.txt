@@ -1,8 +1,12 @@
 YexoFX - bibliotheque de SFX
 =============================
 
-Un sous-dossier = une categorie affichee dans l'onglet Audio du panel
-(whoosh, impact, glitch, riser, click, bassdrop... ou tes propres dossiers).
+Un sous-dossier = une categorie affichee dans l'onglet Audio du panel.
+Formats acceptes : WAV, MP3, AIFF. Ajoute tes propres sons ou dossiers a cote.
 
-Formats acceptes : WAV, MP3, AIFF.
-Le pack de base libre de droits sera genere par tools/generate_sfx.py (livraison 5).
+Pack de base : genere par tools/generate_sfx.py (synthese pure, aucun echantillon
+externe : libre de droits, utilisable dans tes edits et tes videos monetisees).
+Variantes par style : <type>_<style>.wav (ex. impact/impact_phonk.wav). Un preset
+qui suggere "impact" en style Phonk prend impact_phonk.wav, sinon impact.wav.
+
+Pour regenerer : python tools/generate_sfx.py

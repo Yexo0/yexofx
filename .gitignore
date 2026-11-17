@@ -14,3 +14,7 @@ keys/licence_*.txt
 YexoFX_assets/previews/*.mp4
 YexoFX_assets/previews/*.mov
 YexoFX_assets/previews/*.m4v
+
+# Captures des tests navigateur (régénérées à chaque npm run check)
+tests/screenshots/
+*.part.webp

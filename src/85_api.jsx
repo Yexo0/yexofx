@@ -14,7 +14,7 @@ Y.api.context = function () {
     sel = comp.selectedLayers;
     for (i = 0; i < sel.length; i++) {
         L = sel[i];
-        out.push({ name: L.name, kind: Y.l.kind(L), locked: !!L.locked, index: L.index });
+        out.push({ name: L.name, kind: Y.l.kind(L), locked: !!L.locked, index: L.index, mk: Y.m.prop(L) ? Y.m.prop(L).numKeys : 0, d3: !!L.threeDLayer });
     }
     return {
         project: true,
@@ -34,6 +34,41 @@ Y.api.cmd = {
     presets: function () {
         return Y.reg.ids();
     },
+    // v1.0 : primitives connues du moteur (un preset du catalogue est prêt si toutes ses primitives le sont).
+    prims: function () {
+        return Y.prim.ids();
+    },
+    primSchema: function () {
+        return Y.prim.schema();
+    },
+    // Pile de presets (preset perso) : un seul undo group pour tout.
+    applyStack: function (a) {
+        return { msg: Y.rx.stack(a.items || [], a.name || "Preset perso") };
+    },
+    applyPack: function (a) {
+        return { msg: Y.rx.pack(a) };
+    },
+    // Historique du panel : « Annuler » = Edit > Undo d'AE (commande 16), une fois.
+    undo: function () {
+        if (!app.project) { Y.fail(Y.MSG.noProject); }
+        app.executeCommand(16);
+        return { msg: "Dernière action annulée (Edit > Undo)" };
+    },
+    sfxTimes: function (a) {
+        return { msg: Y.audio.placeTimes(String(a.path), a.times || []) };
+    },
+    probe: function () {
+        return Y.dev.probe();
+    },
+    rxTestBegin: function () {
+        return Y.dev.rxBegin();
+    },
+    rxTest: function (a) {
+        return Y.dev.rxTest(a);
+    },
+    rxTestEnd: function (a) {
+        return Y.dev.rxEnd(a);
+    },
     context: function () {
         return Y.api.context();
     },
@@ -51,6 +86,7 @@ Y.api.cmd = {
         return { assets: f ? f.fsName : null };
     },
     apply: function (a) {
+        if (a.def && a.def.impl !== "native") { return { msg: Y.rx.exec(a.def, a.params || {}) }; }
         return { msg: Y.exec(String(a.id), a.params || {}) };
     },
     sfx: function (a) {

@@ -1,0 +1,2252 @@
+{
+ "shake": {
+  "label": "Secousse",
+  "fx": [
+   "ADBE Tile",
+   "ADBE Geometry2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip new",
+  "main": "amp",
+  "creates": false,
+  "params": {
+   "pattern": [
+    "e",
+    "decay",
+    [
+     "decay",
+     "wiggle",
+     "bursts",
+     "jumps",
+     "rumble",
+     "roll",
+     "recoil",
+     "heartbeat",
+     "quake",
+     "drunk",
+     "step"
+    ]
+   ],
+   "axis": [
+    "e",
+    "xy",
+    [
+     "xy",
+     "x",
+     "y",
+     "diag",
+     "rot"
+    ]
+   ],
+   "amp": [
+    "n",
+    24,
+    0,
+    400,
+    "k"
+   ],
+   "rot": [
+    "n",
+    0,
+    0,
+    45,
+    "k"
+   ],
+   "freq": [
+    "n",
+    11,
+    0.05,
+    40
+   ],
+   "zoom": [
+    "n",
+    0,
+    0,
+    60,
+    "k"
+   ],
+   "blur": [
+    "n",
+    180,
+    0,
+    360
+   ],
+   "tile": [
+    "n",
+    140,
+    0,
+    300
+   ],
+   "seed": [
+    "n",
+    0,
+    0,
+    999
+   ]
+  }
+ },
+ "twitch": {
+  "label": "Densite",
+  "fx": [
+   "ADBE Tile",
+   "ADBE Geometry2",
+   "ADBE Exposure2",
+   "ADBE Box Blur2",
+   "ADBE CHANNEL MIXER"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": "density",
+  "creates": false,
+  "params": {
+   "channels": [
+    "l",
+    [
+     "scale"
+    ],
+    [
+     "scale",
+     "slide",
+     "slidey",
+     "rot",
+     "skew",
+     "light",
+     "blur",
+     "rgb"
+    ]
+   ],
+   "density": [
+    "n",
+    55,
+    0,
+    100
+   ],
+   "scale": [
+    "n",
+    14,
+    0,
+    100,
+    "k"
+   ],
+   "slide": [
+    "n",
+    40,
+    0,
+    400,
+    "k"
+   ],
+   "rot": [
+    "n",
+    6,
+    0,
+    90,
+    "k"
+   ],
+   "skew": [
+    "n",
+    12,
+    0,
+    60,
+    "k"
+   ],
+   "light": [
+    "n",
+    1.4,
+    0,
+    5,
+    "k"
+   ],
+   "blur": [
+    "n",
+    14,
+    0,
+    100,
+    "k"
+   ],
+   "rgb": [
+    "n",
+    10,
+    0,
+    80,
+    "k"
+   ]
+  }
+ },
+ "punch": {
+  "label": "Punch",
+  "fx": [
+   "ADBE Tile",
+   "ADBE Geometry2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip new",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "channel": [
+    "e",
+    "scale",
+    [
+     "scale",
+     "rot",
+     "posx",
+     "posy"
+    ]
+   ],
+   "amount": [
+    "n",
+    20,
+    -200,
+    400,
+    "k"
+   ],
+   "blur": [
+    "n",
+    180,
+    0,
+    360
+   ]
+  }
+ },
+ "drift": {
+  "label": "Derive",
+  "fx": [
+   "ADBE Tile",
+   "ADBE Geometry2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer clip new",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "push",
+    [
+     "push",
+     "pull",
+     "panx",
+     "pany",
+     "rot",
+     "dutch"
+    ]
+   ],
+   "amount": [
+    "n",
+    12,
+    -400,
+    400,
+    "k"
+   ]
+  }
+ },
+ "stretch": {
+  "label": "Etirement",
+  "fx": [
+   "ADBE Tile",
+   "ADBE Geometry2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "axis": [
+    "e",
+    "x",
+    [
+     "x",
+     "y"
+    ]
+   ],
+   "amount": [
+    "n",
+    60,
+    -90,
+    400,
+    "k"
+   ],
+   "skew": [
+    "n",
+    0,
+    -60,
+    60,
+    "k"
+   ],
+   "blur": [
+    "n",
+    270,
+    0,
+    360
+   ]
+  }
+ },
+ "flip": {
+  "label": "Flip",
+  "fx": [
+   "ADBE Geometry2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "axis": [
+    "e",
+    "h",
+    [
+     "h",
+     "v",
+     "rot"
+    ]
+   ]
+  }
+ },
+ "timeRemap": {
+  "label": "Vitesse",
+  "fx": [],
+  "cost": 2,
+  "hosts": "clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "shape": [
+    "e",
+    "velocity",
+    [
+     "velocity",
+     "slowmo",
+     "speedup",
+     "freeze",
+     "rewind",
+     "stutter",
+     "boomerang",
+     "steps",
+     "ramp",
+     "reverse"
+    ]
+   ],
+   "fast": [
+    "n",
+    220,
+    100,
+    1000
+   ],
+   "slow": [
+    "n",
+    25,
+    1,
+    100
+   ],
+   "repeat": [
+    "n",
+    3,
+    1,
+    12
+   ],
+   "chunk": [
+    "n",
+    4,
+    1,
+    30
+   ],
+   "pixel": [
+    "b",
+    true
+   ]
+  }
+ },
+ "posterizeTime": {
+  "label": "Cadence",
+  "fx": [
+   "ADBE Posterize Time"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": "fps",
+  "creates": false,
+  "params": {
+   "fps": [
+    "n",
+    12,
+    1,
+    60
+   ]
+  }
+ },
+ "echo": {
+  "label": "Echos",
+  "fx": [
+   "ADBE Echo"
+  ],
+  "cost": 4,
+  "hosts": "any adj layer clip",
+  "main": "count",
+  "creates": false,
+  "params": {
+   "time": [
+    "n",
+    -2,
+    -30,
+    30
+   ],
+   "count": [
+    "n",
+    6,
+    1,
+    30
+   ],
+   "decay": [
+    "n",
+    0.7,
+    0,
+    1
+   ],
+   "mode": [
+    "e",
+    "add",
+    [
+     "add",
+     "max",
+     "min",
+     "screen",
+     "behind",
+     "front",
+     "blend"
+    ]
+   ]
+  }
+ },
+ "dirBlur": {
+  "label": "Flou",
+  "fx": [
+   "ADBE Motion Blur"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "length",
+  "creates": false,
+  "params": {
+   "angle": [
+    "n",
+    90,
+    -360,
+    360
+   ],
+   "length": [
+    "n",
+    60,
+    0,
+    600,
+    "k"
+   ]
+  }
+ },
+ "radialBlur": {
+  "label": "Flou",
+  "fx": [
+   "CC Radial Fast Blur",
+   "ADBE Radial Blur"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "type": [
+    "e",
+    "zoom",
+    [
+     "zoom",
+     "spin"
+    ]
+   ],
+   "amount": [
+    "n",
+    40,
+    0,
+    100,
+    "k"
+   ]
+  }
+ },
+ "blur": {
+  "label": "Flou",
+  "fx": [
+   "ADBE Box Blur2",
+   "ADBE Gaussian Blur 2"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip new",
+  "main": "radius",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "gauss",
+    [
+     "box",
+     "gauss"
+    ]
+   ],
+   "radius": [
+    "n",
+    12,
+    0,
+    300,
+    "k"
+   ],
+   "dims": [
+    "e",
+    "both",
+    [
+     "both",
+     "h",
+     "v"
+    ]
+   ]
+  }
+ },
+ "exposure": {
+  "label": "Flash",
+  "fx": [
+   "ADBE Exposure2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip new",
+  "main": "stops",
+  "creates": false,
+  "params": {
+   "stops": [
+    "n",
+    1.5,
+    -8,
+    8,
+    "k"
+   ]
+  }
+ },
+ "flash": {
+  "label": "Opacite",
+  "fx": [],
+  "cost": 1,
+  "hosts": "any adj layer cut clip new",
+  "main": "opacity",
+  "creates": false,
+  "params": {
+   "color": [
+    "c",
+    "#ffffff"
+   ],
+   "blend": [
+    "e",
+    "normal",
+    [
+     "normal",
+     "add",
+     "screen",
+     "multiply",
+     "difference",
+     "overlay",
+     "color",
+     "softlight",
+     "hardlight",
+     "dodge"
+    ]
+   ],
+   "opacity": [
+    "n",
+    85,
+    0,
+    100,
+    "k"
+   ]
+  }
+ },
+ "invert": {
+  "label": "Inversion",
+  "fx": [
+   "ADBE Invert"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "channel": [
+    "e",
+    "rgb",
+    [
+     "rgb",
+     "lightness",
+     "hue",
+     "luma"
+    ]
+   ]
+  }
+ },
+ "grade": {
+  "label": "Etalonnage",
+  "fx": [
+   "ADBE Lumetri"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "temp": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "tint": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "exposure": [
+    "n",
+    0,
+    -5,
+    5
+   ],
+   "contrast": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "highlights": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "shadows": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "whites": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "blacks": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "sat": [
+    "n",
+    100,
+    0,
+    200
+   ],
+   "vibrance": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "faded": [
+    "n",
+    0,
+    0,
+    100
+   ],
+   "sharpen": [
+    "n",
+    0,
+    -100,
+    100
+   ]
+  }
+ },
+ "levels": {
+  "label": "Niveaux",
+  "fx": [
+   "ADBE Easy Levels2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "inBlack": [
+    "n",
+    0,
+    0,
+    1
+   ],
+   "inWhite": [
+    "n",
+    1,
+    0,
+    1
+   ],
+   "gamma": [
+    "n",
+    1,
+    0.1,
+    5
+   ],
+   "outBlack": [
+    "n",
+    0,
+    0,
+    1
+   ],
+   "outWhite": [
+    "n",
+    1,
+    0,
+    1
+   ]
+  }
+ },
+ "hueSat": {
+  "label": "Teinte",
+  "fx": [
+   "ADBE HUE SATURATION"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "hue": [
+    "n",
+    0,
+    -180,
+    180
+   ],
+   "sat": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "light": [
+    "n",
+    0,
+    -100,
+    100
+   ],
+   "colorize": [
+    "b",
+    false
+   ],
+   "chue": [
+    "n",
+    0,
+    0,
+    360
+   ],
+   "csat": [
+    "n",
+    25,
+    0,
+    100
+   ],
+   "clight": [
+    "n",
+    0,
+    -100,
+    100
+   ]
+  }
+ },
+ "colorBalance": {
+  "label": "Balance",
+  "fx": [
+   "ADBE Color Balance 2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "shadows": [
+    "a",
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "mids": [
+    "a",
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "highs": [
+    "a",
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "preserve": [
+    "b",
+    true
+   ]
+  }
+ },
+ "duotone": {
+  "label": "Bichromie",
+  "fx": [
+   "ADBE Tritone"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "shadows": [
+    "c",
+    "#000000"
+   ],
+   "mids": [
+    "c",
+    "#7f7f7f"
+   ],
+   "highs": [
+    "c",
+    "#ffffff"
+   ],
+   "blend": [
+    "n",
+    0,
+    0,
+    100
+   ]
+  }
+ },
+ "bw": {
+  "label": "NoirBlanc",
+  "fx": [
+   "ADBE Tint"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "amount": [
+    "n",
+    100,
+    0,
+    100,
+    "k"
+   ],
+   "tint": [
+    "c",
+    "#ffffff"
+   ],
+   "dark": [
+    "c",
+    "#000000"
+   ]
+  }
+ },
+ "leaveColor": {
+  "label": "Decolore",
+  "fx": [
+   "ADBE Leave Color"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "color": [
+    "c",
+    "#d00000"
+   ],
+   "tolerance": [
+    "n",
+    25,
+    0,
+    100
+   ],
+   "softness": [
+    "n",
+    15,
+    0,
+    100
+   ],
+   "amount": [
+    "n",
+    100,
+    0,
+    100,
+    "k"
+   ]
+  }
+ },
+ "glow": {
+  "label": "Glow",
+  "fx": [
+   "ADBE Glo2"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip new text",
+  "main": "intensity",
+  "creates": false,
+  "params": {
+   "threshold": [
+    "n",
+    60,
+    0,
+    100
+   ],
+   "radius": [
+    "n",
+    40,
+    0,
+    1500,
+    "k"
+   ],
+   "intensity": [
+    "n",
+    1,
+    0,
+    10,
+    "k"
+   ],
+   "passes": [
+    "n",
+    1,
+    1,
+    3
+   ],
+   "colorA": [
+    "c",
+    "#ffffff"
+   ],
+   "colorB": [
+    "c",
+    "#ffffff"
+   ],
+   "tinted": [
+    "b",
+    false
+   ],
+   "deep": [
+    "b",
+    false
+   ]
+  }
+ },
+ "rays": {
+  "label": "Rayons",
+  "fx": [
+   "CC Light Rays"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "intensity",
+  "creates": false,
+  "params": {
+   "intensity": [
+    "n",
+    60,
+    0,
+    600,
+    "k"
+   ],
+   "radius": [
+    "n",
+    40,
+    0,
+    400
+   ],
+   "center": [
+    "e",
+    "center",
+    [
+     "center",
+     "top",
+     "bottom"
+    ]
+   ]
+  }
+ },
+ "flare": {
+  "label": "Flare",
+  "fx": [
+   "ADBE Lens Flare"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "brightness",
+  "creates": false,
+  "params": {
+   "lens": [
+    "e",
+    "zoom",
+    [
+     "zoom",
+     "35",
+     "105"
+    ]
+   ],
+   "brightness": [
+    "n",
+    100,
+    0,
+    300,
+    "k"
+   ],
+   "path": [
+    "e",
+    "sweep",
+    [
+     "sweep",
+     "static",
+     "burst"
+    ]
+   ]
+  }
+ },
+ "lightLeak": {
+  "label": "Fuite",
+  "fx": [
+   "ADBE Fractal Noise",
+   "ADBE Tritone"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip new",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "colorHi": [
+    "c",
+    "#fff0d1"
+   ],
+   "colorMid": [
+    "c",
+    "#ff7329"
+   ],
+   "speed": [
+    "n",
+    40,
+    0,
+    600
+   ],
+   "scale": [
+    "n",
+    900,
+    100,
+    4000
+   ],
+   "amount": [
+    "n",
+    70,
+    0,
+    100,
+    "k"
+   ]
+  }
+ },
+ "vignette": {
+  "label": "Vignette",
+  "fx": [],
+  "cost": 1,
+  "hosts": "any adj layer cut clip new",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "amount": [
+    "n",
+    65,
+    0,
+    100,
+    "k"
+   ],
+   "softness": [
+    "n",
+    45,
+    0,
+    100
+   ],
+   "size": [
+    "n",
+    56,
+    20,
+    120
+   ],
+   "color": [
+    "c",
+    "#000000"
+   ],
+   "wide": [
+    "b",
+    false
+   ]
+  }
+ },
+ "sharpen": {
+  "label": "Nettete",
+  "fx": [
+   "ADBE Unsharp Mask2"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "amount": [
+    "n",
+    60,
+    0,
+    500,
+    "k"
+   ],
+   "radius": [
+    "n",
+    1.2,
+    0.1,
+    20
+   ]
+  }
+ },
+ "rgbSplit": {
+  "label": "RGB",
+  "fx": [
+   "ADBE CHANNEL MIXER",
+   "ADBE Geometry2"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "px",
+  "creates": false,
+  "params": {
+   "px": [
+    "n",
+    8,
+    0,
+    300,
+    "k"
+   ],
+   "axis": [
+    "e",
+    "h",
+    [
+     "h",
+     "v",
+     "diag"
+    ]
+   ],
+   "breath": [
+    "n",
+    0,
+    0,
+    1
+   ]
+  }
+ },
+ "waveWarp": {
+  "label": "Onde",
+  "fx": [
+   "ADBE Wave Warp"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip text",
+  "main": "height",
+  "creates": false,
+  "params": {
+   "type": [
+    "e",
+    "sine",
+    [
+     "sine",
+     "square",
+     "triangle",
+     "sawtooth",
+     "circle",
+     "semicircle",
+     "uncircle",
+     "noise",
+     "smoothnoise"
+    ]
+   ],
+   "height": [
+    "n",
+    10,
+    0,
+    600,
+    "k"
+   ],
+   "width": [
+    "n",
+    80,
+    1,
+    3000
+   ],
+   "dir": [
+    "n",
+    90,
+    0,
+    360
+   ],
+   "speed": [
+    "n",
+    1,
+    0,
+    30
+   ],
+   "jitter": [
+    "b",
+    false
+   ]
+  }
+ },
+ "lens": {
+  "label": "Lentille",
+  "fx": [
+   "ADBE Optics Compensation",
+   "ADBE Bulge",
+   "ADBE Spherize"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "fisheye",
+    [
+     "fisheye",
+     "bulge",
+     "sphere"
+    ]
+   ],
+   "amount": [
+    "n",
+    30,
+    -200,
+    200,
+    "k"
+   ]
+  }
+ },
+ "warp": {
+  "label": "Distorsion",
+  "fx": [
+   "ADBE Turbulent Displace",
+   "ADBE Twirl",
+   "ADBE Ripple"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip text",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "turbulent",
+    [
+     "turbulent",
+     "twirl",
+     "ripple"
+    ]
+   ],
+   "amount": [
+    "n",
+    30,
+    -720,
+    720,
+    "k"
+   ],
+   "size": [
+    "n",
+    60,
+    1,
+    1000
+   ],
+   "speed": [
+    "n",
+    1,
+    0,
+    30
+   ]
+  }
+ },
+ "blocks": {
+  "label": "Glitch",
+  "fx": [
+   "ADBE Wave Warp",
+   "ADBE Echo",
+   "ADBE Turbulent Displace",
+   "ADBE Motion Blur"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "shift",
+    [
+     "shift",
+     "mosh",
+     "sort"
+    ]
+   ],
+   "amount": [
+    "n",
+    60,
+    0,
+    600,
+    "k"
+   ],
+   "size": [
+    "n",
+    60,
+    4,
+    600
+   ],
+   "density": [
+    "n",
+    50,
+    0,
+    100
+   ]
+  }
+ },
+ "pixelate": {
+  "label": "Blocs",
+  "fx": [
+   "ADBE Mosaic"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": "blocks",
+  "creates": false,
+  "params": {
+   "blocks": [
+    "n",
+    24,
+    2,
+    400
+   ]
+  }
+ },
+ "posterize": {
+  "label": "Aplats",
+  "fx": [
+   "ADBE Posterize"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "levels": [
+    "n",
+    5,
+    2,
+    64
+   ]
+  }
+ },
+ "ink": {
+  "label": "Encre",
+  "fx": [
+   "ADBE Threshold2",
+   "ADBE Find Edges"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "threshold",
+    [
+     "threshold",
+     "edges"
+    ]
+   ],
+   "level": [
+    "n",
+    128,
+    0,
+    255
+   ],
+   "blend": [
+    "n",
+    0,
+    0,
+    100
+   ]
+  }
+ },
+ "halftone": {
+  "label": "Trame",
+  "fx": [
+   "CC Ball Action"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "size": [
+    "n",
+    14,
+    3,
+    120
+   ]
+  }
+ },
+ "scanlines": {
+  "label": "Lignes",
+  "fx": [
+   "ADBE Venetian Blinds"
+  ],
+  "cost": 1,
+  "hosts": "any adj layer cut clip new",
+  "main": "opacity",
+  "creates": false,
+  "params": {
+   "spacing": [
+    "n",
+    4,
+    2,
+    80
+   ],
+   "thickness": [
+    "n",
+    50,
+    5,
+    95
+   ],
+   "roll": [
+    "n",
+    0,
+    0,
+    600
+   ],
+   "opacity": [
+    "n",
+    25,
+    0,
+    100,
+    "k"
+   ],
+   "color": [
+    "c",
+    "#000000"
+   ]
+  }
+ },
+ "grain": {
+  "label": "Grain",
+  "fx": [
+   "ADBE Fractal Noise"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip new",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "fine",
+    [
+     "fine",
+     "film",
+     "digital",
+     "dust"
+    ]
+   ],
+   "size": [
+    "n",
+    22,
+    1,
+    400
+   ],
+   "amount": [
+    "n",
+    35,
+    0,
+    100,
+    "k"
+   ]
+  }
+ },
+ "mirror": {
+  "label": "Miroir",
+  "fx": [
+   "ADBE Mirror",
+   "CC Kaleida",
+   "ADBE Polar Coordinates"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "mirror",
+    [
+     "mirror",
+     "kaleida",
+     "polar"
+    ]
+   ],
+   "angle": [
+    "n",
+    90,
+    0,
+    360
+   ],
+   "size": [
+    "n",
+    30,
+    1,
+    400
+   ],
+   "spin": [
+    "n",
+    0,
+    -360,
+    360
+   ]
+  }
+ },
+ "speedLines": {
+  "label": "Lignes",
+  "fx": [
+   "ADBE Fractal Noise",
+   "ADBE Polar Coordinates",
+   "ADBE Shift Channels",
+   "ADBE Fill"
+  ],
+  "cost": 2,
+  "hosts": "any adj layer cut clip new",
+  "main": "amount",
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "radial",
+    [
+     "radial",
+     "horizontal"
+    ]
+   ],
+   "density": [
+    "n",
+    50,
+    0,
+    100
+   ],
+   "color": [
+    "c",
+    "#ffffff"
+   ],
+   "amount": [
+    "n",
+    80,
+    0,
+    100,
+    "k"
+   ],
+   "hole": [
+    "n",
+    35,
+    0,
+    90
+   ]
+  }
+ },
+ "textReveal": {
+  "label": "Revelation",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "scale": [
+    "n",
+    100,
+    -400,
+    600
+   ],
+   "posx": [
+    "n",
+    0,
+    -3000,
+    3000,
+    "k"
+   ],
+   "posy": [
+    "n",
+    0,
+    -3000,
+    3000,
+    "k"
+   ],
+   "rotx": [
+    "n",
+    0,
+    -720,
+    720
+   ],
+   "roty": [
+    "n",
+    0,
+    -720,
+    720
+   ],
+   "rotz": [
+    "n",
+    0,
+    -720,
+    720
+   ],
+   "opacity": [
+    "n",
+    0,
+    0,
+    100
+   ],
+   "blur": [
+    "n",
+    0,
+    0,
+    300,
+    "k"
+   ],
+   "tracking": [
+    "n",
+    0,
+    -300,
+    600,
+    "k"
+   ],
+   "skew": [
+    "n",
+    0,
+    -85,
+    85
+   ],
+   "fill": [
+    "c",
+    "#ffffff"
+   ],
+   "order": [
+    "e",
+    "forward",
+    [
+     "forward",
+     "reverse",
+     "center",
+     "edges",
+     "random"
+    ]
+   ]
+  }
+ },
+ "textRandom": {
+  "label": "Glitch",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "glitch",
+    [
+     "glitch",
+     "scramble",
+     "flicker"
+    ]
+   ],
+   "amount": [
+    "n",
+    16,
+    0,
+    300,
+    "k"
+   ],
+   "color": [
+    "c",
+    "#ff4655"
+   ]
+  }
+ },
+ "typewriter": {
+  "label": "Frappe",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "cursor": [
+    "b",
+    true
+   ],
+   "cursorChar": [
+    "t",
+    "|"
+   ]
+  }
+ },
+ "textWave": {
+  "label": "Vague",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": "amp",
+  "creates": false,
+  "params": {
+   "amp": [
+    "n",
+    18,
+    0,
+    300,
+    "k"
+   ],
+   "freq": [
+    "n",
+    1.2,
+    0.05,
+    12
+   ],
+   "gap": [
+    "n",
+    0.6,
+    0,
+    4
+   ],
+   "axis": [
+    "e",
+    "y",
+    [
+     "y",
+     "scale",
+     "rot"
+    ]
+   ]
+  }
+ },
+ "textKinetic": {
+  "label": "Kinetic",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "mode": [
+    "e",
+    "word",
+    [
+     "word",
+     "stack",
+     "highlight"
+    ]
+   ],
+   "color": [
+    "c",
+    "#ff4b3e"
+   ],
+   "scale": [
+    "n",
+    115,
+    100,
+    300
+   ]
+  }
+ },
+ "textStyle": {
+  "label": "Style",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "fonts": [
+    "a",
+    []
+   ],
+   "fill": [
+    "c",
+    "#ffffff"
+   ],
+   "stroke": [
+    "c",
+    "#000000"
+   ],
+   "strokeW": [
+    "n",
+    0,
+    0,
+    60,
+    "k"
+   ],
+   "caps": [
+    "b",
+    false
+   ],
+   "italic": [
+    "b",
+    false
+   ],
+   "tracking": [
+    "n",
+    0,
+    -200,
+    600
+   ],
+   "fauxBold": [
+    "b",
+    false
+   ]
+  }
+ },
+ "textShadow": {
+  "label": "Ombre",
+  "fx": [
+   "ADBE Drop Shadow"
+  ],
+  "cost": 1,
+  "hosts": "text new layer",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "outline",
+    [
+     "outline",
+     "halo",
+     "extrude",
+     "long",
+     "offset"
+    ]
+   ],
+   "color": [
+    "c",
+    "#000000"
+   ],
+   "size": [
+    "n",
+    4,
+    0,
+    300,
+    "k"
+   ],
+   "steps": [
+    "n",
+    6,
+    1,
+    14
+   ],
+   "dir": [
+    "n",
+    135,
+    0,
+    360
+   ]
+  }
+ },
+ "textFill": {
+  "label": "Remplissage",
+  "fx": [
+   "ADBE Ramp",
+   "ADBE Bevel Alpha",
+   "CC Light Sweep"
+  ],
+  "cost": 2,
+  "hosts": "text new layer",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "gradient",
+    [
+     "gradient",
+     "chrome",
+     "sweep"
+    ]
+   ],
+   "colorA": [
+    "c",
+    "#c8bfff"
+   ],
+   "colorB": [
+    "c",
+    "#ff4655"
+   ],
+   "speed": [
+    "n",
+    0.4,
+    0,
+    5
+   ]
+  }
+ },
+ "textCounter": {
+  "label": "Compteur",
+  "fx": [],
+  "cost": 1,
+  "hosts": "text new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "count",
+    [
+     "count",
+     "markers",
+     "timer"
+    ]
+   ],
+   "from": [
+    "n",
+    0,
+    -1000000,
+    1000000
+   ],
+   "to": [
+    "n",
+    100,
+    -1000000,
+    1000000
+   ],
+   "prefix": [
+    "t",
+    ""
+   ],
+   "suffix": [
+    "t",
+    ""
+   ],
+   "decimals": [
+    "n",
+    0,
+    0,
+    3
+   ]
+  }
+ },
+ "hud": {
+  "label": "HUD",
+  "fx": [],
+  "cost": 1,
+  "hosts": "new",
+  "main": null,
+  "creates": true,
+  "params": {
+   "kind": [
+    "e",
+    "hitmarker",
+    [
+     "hitmarker",
+     "crosshair",
+     "killfeed",
+     "letterbox",
+     "frame",
+     "perforation",
+     "rec",
+     "scoreboard",
+     "playerbar",
+     "lowerthird",
+     "grid",
+     "brackets",
+     "cases"
+    ]
+   ],
+   "color": [
+    "c",
+    "#ffffff"
+   ],
+   "accent": [
+    "c",
+    "#ff4655"
+   ],
+   "size": [
+    "n",
+    100,
+    10,
+    400
+   ],
+   "ratio": [
+    "n",
+    2.39,
+    0.5,
+    4
+   ],
+   "text": [
+    "t",
+    ""
+   ],
+   "text2": [
+    "t",
+    ""
+   ]
+  }
+ },
+ "textLayer": {
+  "label": "Texte",
+  "fx": [],
+  "cost": 1,
+  "hosts": "new",
+  "main": null,
+  "creates": true,
+  "params": {
+   "word": [
+    "t",
+    "ACE"
+   ],
+   "size": [
+    "n",
+    14,
+    2,
+    60
+   ],
+   "pos": [
+    "e",
+    "center",
+    [
+     "center",
+     "upper",
+     "lower",
+     "top",
+     "bottom"
+    ]
+   ],
+   "fill": [
+    "c",
+    "#ffffff"
+   ],
+   "fonts": [
+    "a",
+    []
+   ],
+   "caps": [
+    "b",
+    true
+   ],
+   "rot": [
+    "n",
+    0,
+    -45,
+    45
+   ]
+  }
+ },
+ "particles": {
+  "label": "Particules",
+  "fx": [
+   "CC Particle World",
+   "CC Star Burst"
+  ],
+  "cost": 4,
+  "hosts": "new any adj",
+  "main": "amount",
+  "creates": true,
+  "params": {
+   "kind": [
+    "e",
+    "dust",
+    [
+     "dust",
+     "sparks",
+     "stars",
+     "snow",
+     "embers"
+    ]
+   ],
+   "amount": [
+    "n",
+    60,
+    0,
+    400,
+    "k"
+   ],
+   "color": [
+    "c",
+    "#ffffff"
+   ]
+  }
+ },
+ "camera": {
+  "label": "Camera",
+  "fx": [],
+  "cost": 2,
+  "hosts": "new",
+  "main": "amount",
+  "creates": true,
+  "params": {
+   "move": [
+    "e",
+    "push",
+    [
+     "push",
+     "pull",
+     "orbit",
+     "tilt",
+     "pan",
+     "roll",
+     "crane",
+     "dollyzoom",
+     "shake3d"
+    ]
+   ],
+   "amount": [
+    "n",
+    30,
+    -400,
+    400,
+    "k"
+   ],
+   "make3d": [
+    "b",
+    true
+   ]
+  }
+ },
+ "parallax": {
+  "label": "Profondeur",
+  "fx": [
+   "ADBE Displacement Map",
+   "CC Cylinder",
+   "CC Sphere"
+  ],
+  "cost": 2,
+  "hosts": "any layer new",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "layers",
+    [
+     "layers",
+     "depth",
+     "cylinder",
+     "sphere"
+    ]
+   ],
+   "depth": [
+    "n",
+    400,
+    0,
+    6000,
+    "k"
+   ],
+   "speed": [
+    "n",
+    0.5,
+    0,
+    6
+   ]
+  }
+ },
+ "wipe": {
+  "label": "Volet",
+  "fx": [
+   "ADBE Linear Wipe",
+   "ADBE Radial Wipe",
+   "ADBE Venetian Blinds",
+   "ADBE Block Dissolve",
+   "ADBE Gradient Wipe",
+   "CC Grid Wipe"
+  ],
+  "cost": 1,
+  "hosts": "two",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "linear",
+    [
+     "linear",
+     "radial",
+     "clock",
+     "iris",
+     "venetian",
+     "block",
+     "luma",
+     "grid"
+    ]
+   ],
+   "angle": [
+    "n",
+    90,
+    0,
+    360
+   ],
+   "feather": [
+    "n",
+    40,
+    0,
+    600
+   ]
+  }
+ },
+ "layer3d": {
+  "label": "Transition3D",
+  "fx": [],
+  "cost": 2,
+  "hosts": "two",
+  "main": null,
+  "creates": false,
+  "params": {
+   "kind": [
+    "e",
+    "flip",
+    [
+     "flip",
+     "cube",
+     "swing",
+     "slide3d",
+     "fold"
+    ]
+   ],
+   "axis": [
+    "e",
+    "y",
+    [
+     "y",
+     "x"
+    ]
+   ],
+   "amount": [
+    "n",
+    90,
+    10,
+    180
+   ]
+  }
+ }
+}

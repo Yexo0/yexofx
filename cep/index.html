@@ -23,7 +23,8 @@
     <header class="top">
       <div class="crumb" id="crumb"></div>
       <button class="search-btn" id="btnSearch" type="button" aria-label="Rechercher (Ctrl+K)"><span id="searchIco"></span><span class="txt">Rechercher</span><kbd>Ctrl K</kbd></button>
-      <button class="ibtn" id="btnAuto" type="button" aria-pressed="true" title="Lecture auto des previews"></button>
+      <button class="ibtn" id="btnHistory" type="button" title="Historique de la session (annuler)" aria-label="Historique"></button>
+      <button class="ibtn" id="btnAuto" type="button" aria-pressed="false" title="Previews : au survol"></button>
     </header>
 
     <div class="banner" id="banner" hidden></div>
@@ -45,7 +46,7 @@
     <footer class="statusbar">
       <span class="st-dot wait" id="status" title="État"></span>
       <button class="ctx-line" id="ctx" type="button" title="Comp active et sélection (clique pour rafraîchir)">connexion à After Effects…</button>
-      <span class="ver" id="ver">v0.6</span>
+      <span class="ver" id="ver">v1.0</span>
     </footer>
   </main>
 
@@ -77,7 +78,9 @@
 </div>
 
 <script src="js/pubkey.js"></script>
+<script src="js/catalog.data.js"></script>
 <script src="js/catalog.js"></script>
+<script src="js/search.js"></script>
 <script src="js/store.js"></script>
 <script src="js/bridge.js"></script>
 <script src="js/previews.js"></script>

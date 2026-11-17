@@ -260,13 +260,17 @@ Y.pv.begin = function () {
     return { source: st.label, template: st.template.name, raw: Y.pv.rawDir().fsName, queued: st.queued.length };
 };
 
-// a = { id, kind: hit|text|cut, word, params, keep }
+// a = { id, kind: hit|text|cut|loop, word, params, keep, def }
+// def : recette du catalogue v1 (sinon preset natif v0.6 par son id). loop = effet continu : rendu comme un impact.
 Y.pv.render = function (a) {
-    var st = Y.pv.st, id = String(a.id || ""), p = Y.reg.byId[id], kind = String(a.kind || "hit");
-    var comp, L, L2, T, sel = [], msg, rqi, om, file, out, t0 = Y.u.ms(), params = a.params || {};
+    var st = Y.pv.st, id = String(a.id || ""), def = (a.def && a.def.impl !== "native") ? a.def : null, p, kind = String(a.kind || "hit");
+    var comp, L, L2, T, sel = [], msg, rqi, om, file, out, t0 = Y.u.ms(), params = a.params || {}, n3d = 0, k;
     if (!st) { Y.fail("Génération des previews non démarrée (pvBegin)."); }
+    p = def ? Y.rx.preset(def) : Y.reg.byId[id];
+    if (def) { id = String(def.id); n3d = (def.needs && def.needs.layers3d) ? def.needs.layers3d : 0; }
     if (!p || p.hidden) { Y.fail("Preset inconnu : " + id); }
     if (p.needs === "audio") { Y.fail(p.name + " : pas de preview pour un outil audio."); }
+    if (kind === "loop") { kind = "hit"; }
     if (p.needs === "two") { kind = "cut"; }
     if (kind === "text" && p.needs !== "text") { kind = "hit"; }
 
@@ -290,12 +294,16 @@ Y.pv.render = function (a) {
                 T = Y.pv.textLayer(comp, a.word);
                 comp.time = Y.pv.TEXT_IN;
                 if (p.needs === "text") { sel = [T]; }
+            } else if (n3d) {
+                // profondeur : le clip au fond, le mot (et des copies) devant
+                sel = [L];
+                for (k = 1; k < n3d; k++) { sel.push(Y.pv.textLayer(comp, a.word)); }
             } else if (p.needs === "av" || p.needs === "layer") {
                 sel = [L];
             }
         }
         if (params.dir === undefined) { params.dir = "in"; }
-        msg = Y.exec(id, params, comp, sel);
+        msg = def ? Y.rx.exec(def, params, comp, sel) : Y.exec(id, params, comp, sel);
 
         out = new File(Y.pv.rawDir().fsName + "/" + id + st.template.ext);
         if (out.exists) { out.remove(); }

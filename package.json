@@ -1,19 +1,23 @@
 {
   "name": "yexofx",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
   "description": "YexoFX : extension CEP pour After Effects 2025 (edits FPS Valorant / CS2)",
   "type": "module",
   "scripts": {
-    "build": "node build.mjs",
+    "build": "node build.mjs && node tools/catalog.mjs --quiet",
+    "lint:catalog": "node tools/catalog.mjs",
     "test:host": "node tests/host.smoke.mjs",
     "test:panel": "node tests/panel.dom.cjs",
-    "check": "node build.mjs && node tests/host.smoke.mjs && node tests/panel.dom.cjs",
-    "licence": "node tools/licence.mjs"
+    "check": "node build.mjs && node tools/catalog.mjs --quiet && node tests/host.smoke.mjs && node tests/panel.dom.cjs && node tests/panel.e2e.mjs",
+    "licence": "node tools/licence.mjs",
+    "test:e2e": "node tests/panel.e2e.mjs",
+    "sfx": "python tools/generate_sfx.py"
   },
   "devDependencies": {
     "acorn": "^8.14.0",
     "geist": "^1.3.1",
-    "jsdom": "^24.1.3"
+    "jsdom": "^24.1.3",
+    "playwright-core": "^1.65.1"
   }
 }

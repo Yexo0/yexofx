@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "yexofx/catalog.schema.json",
+  "title": "YexoFX : fichier de catalogue (une catégorie)",
+  "description": "Validé par tools/catalog.mjs (npm run build). Les paramètres de chaque étape sont vérifiés contre catalog/prims.json, généré depuis le moteur.",
+  "type": "object",
+  "required": ["category", "presets"],
+  "additionalProperties": false,
+  "properties": {
+    "category": { "$ref": "#/$defs/category" },
+    "presets": { "type": "array", "items": { "$ref": "#/$defs/preset" } }
+  },
+  "$defs": {
+    "category": { "enum": ["impacts", "text", "styles", "shake", "twitch", "speed", "trans", "fx", "hud", "cam3d"] },
+    "style": {
+      "enum": ["phonk", "flow", "hype", "cinematic", "raw", "quality", "glitch", "vhs", "y2k", "anime", "comic",
+               "cyberpunk", "noir", "dreamy", "aura", "funk", "minimal", "depth", "esport", "lofi", "horror", "kinetic"]
+    },
+    "curveId": { "enum": ["main", "linear", "expo", "back", "quint", "smooth", "snap", "antic", "aggro", "elastic"] },
+    "hex": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "preset": {
+      "type": "object",
+      "required": ["id", "name", "nameEn", "category", "styles", "tags", "role", "host", "drive", "recipe", "defaults", "needs", "preview"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,47}$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "nameEn": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[A-Za-z0-9 .+&'/-]+$" },
+        "sub": { "type": "string", "maxLength": 40 },
+        "desc": { "type": "string", "maxLength": 320 },
+        "category": { "$ref": "#/$defs/category" },
+        "styles": { "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": { "$ref": "#/$defs/style" } },
+        "tags": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "minLength": 2 } },
+        "role": { "enum": ["in", "hit", "hold", "out", "transition"] },
+        "host": { "enum": ["any", "adj", "layer", "text", "clip", "cut", "two", "new", "comp"] },
+        "drive": { "enum": ["marker", "cut", "loop", "inout", "static"] },
+        "impl": { "enum": ["recipe", "native"] },
+        "tool": { "type": "boolean", "description": "outil (marker, beat, ease) : hors comptage et hors lint" },
+        "recipe": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "frames": { "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 240 }, { "const": "loop" }] },
+            "intensity": { "type": "number", "minimum": 0, "maximum": 2 },
+            "curve": { "$ref": "#/$defs/curveId" },
+            "dir": { "enum": ["in", "out", "both"] },
+            "by": { "enum": ["car", "mot", "ligne"] }
+          }
+        },
+        "perf": { "enum": ["leger", "moyen", "lourd"] },
+        "alt": { "type": "string" },
+        "needs": {
+          "type": "object",
+          "required": ["sel"],
+          "additionalProperties": false,
+          "properties": {
+            "sel": { "enum": ["comp", "any", "layer", "av", "text", "audio", "two"] },
+            "markers": { "type": "boolean" },
+            "layers3d": { "type": "integer", "minimum": 2 },
+            "plugins": { "type": "array", "items": { "type": "string" } },
+            "optional": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "preview": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["hit", "text", "cut", "loop", "none"] },
+            "word": { "type": "string", "maxLength": 16 }
+          }
+        },
+        "sfx": {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": { "type": { "type": "string" }, "variant": { "type": "string" } }
+        },
+        "rank": { "type": "integer" },
+        "since": { "type": "string" }
+      }
+    },
+    "env": {
+      "oneOf": [
+        { "enum": ["main", "loop", "none"] },
+        {
+          "type": "object",
+          "required": ["shape"],
+          "additionalProperties": false,
+          "properties": {
+            "shape": { "enum": ["decay", "attack", "bell", "hold", "ramp", "pulse", "strobe", "steps"] },
+            "len": { "type": "number", "exclusiveMinimum": 0, "maximum": 4 },
+            "frames": { "type": "integer", "minimum": 1, "maximum": 240 },
+            "at": { "type": "number", "minimum": -1, "maximum": 1 },
+            "curve": { "$ref": "#/$defs/curveId" },
+            "n": { "type": "number", "minimum": 1, "maximum": 32 },
+            "duty": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+            "every": { "type": "integer", "minimum": 1, "maximum": 12 }
+          }
+        }
+      ]
+    },
+    "value": {
+      "oneOf": [
+        { "type": "number" },
+        { "type": "string" },
+        { "type": "boolean" },
+        { "type": "array" },
+        {
+          "type": "object", "required": ["from", "to"], "additionalProperties": false,
+          "properties": { "from": { "type": "number" }, "to": { "type": "number" } }
+        },
+        {
+          "type": "object", "required": ["keys"], "additionalProperties": false,
+          "properties": { "keys": { "type": "array", "minItems": 2, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } } }
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "required": ["p"],
+      "properties": {
+        "p": { "type": "string", "description": "id de primitive (voir catalog/prims.json)" },
+        "env": { "$ref": "#/$defs/env" },
+        "label": { "type": "string", "pattern": "^[A-Za-z0-9]{2,16}$" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/value" }
+    }
+  }
+}

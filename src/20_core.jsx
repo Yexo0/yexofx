@@ -184,8 +184,14 @@ Y.ctx = function (p, raw, comp, sel) {
 // lève Y.UserError (message clair) ou Error (bug, avec ligne) en cas d'échec.
 // =====================================================================
 Y.exec = function (id, raw, comp, sel) {
-    var p = Y.reg.byId[id], c, msg;
+    var p = Y.reg.byId[id];
     if (!p) { Y.fail("Ce preset n'est pas encore disponible dans le moteur (" + id + ")."); }
+    return Y.execP(p, raw, comp, sel);
+};
+
+// Même chose pour un preset déjà résolu (preset natif du registre ou recette du catalogue : Y.rx.preset).
+Y.execP = function (p, raw, comp, sel) {
+    var c, msg;
     c = Y.ctx(p, raw, comp, sel);
     if (!p.noUndo) { app.beginUndoGroup("YexoFX : " + Y.reg.title(p)); }
     try {

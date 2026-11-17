@@ -46,3 +46,39 @@ Y.audio.place = function (path, mode) {
     return times.length > 1 ? decodeURI(file.name) + " placé sur " + times.length + " markers"
                             : decodeURI(file.name) + " placé à " + Y.u.tc(times[0], comp);
 };
+
+// Un calque du son à chaque instant (sans undo group : l'appelant l'ouvre). Renvoie le nombre de calques posés.
+Y.audio.addAt = function (comp, path, times) {
+    var file = new File(path), item, i, L;
+    if (!file.exists || !times.length) { return 0; }
+    item = Y.audio.item(file);
+    for (i = 0; i < times.length; i++) {
+        L = comp.layers.add(item);
+        L.startTime = Number(times[i]);
+        L.comment = "YexoFX";
+    }
+    return times.length;
+};
+
+// Son posé à plusieurs instants (coupes d'un pack de style). Un seul undo group.
+Y.audio.placeTimes = function (path, times) {
+    var comp, file, item, i, L;
+    if (!app.project) { Y.fail(Y.MSG.noProject); }
+    comp = app.project.activeItem;
+    if (!(comp instanceof CompItem)) { Y.fail(Y.MSG.noComp); }
+    file = new File(path);
+    if (!file.exists) { Y.fail("Son introuvable : " + path); }
+    if (!times.length) { Y.fail("Aucun instant où poser le son."); }
+    app.beginUndoGroup("YexoFX : SFX " + file.displayName);
+    try {
+        item = Y.audio.item(file);
+        for (i = 0; i < times.length; i++) {
+            L = comp.layers.add(item);
+            L.startTime = Number(times[i]);
+            L.comment = "YexoFX";
+        }
+    } finally {
+        app.endUndoGroup();
+    }
+    return decodeURI(file.name) + " placé " + times.length + " fois";
+};

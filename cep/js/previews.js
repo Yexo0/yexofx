@@ -117,12 +117,128 @@
   };
   const PV = { impacts: pvImpact, text: pvText, shake: pvShake, twitch: pvTwitch, speed: pvSpeed, trans: pvTrans, fx: pvFx, styles: pvStyle };
 
+  // Famille d'animation CSS des 73 presets v0.6 (leur ancienne catégorie).
+  const LEGACY = {};
+  const fam = (cat, ids) => ids.split(' ').forEach((id) => { LEGACY[id] = cat; });
+  fam('impacts', 'killhit shaketwitch rgbpunch hspop bassdrop flicker choppy glowhit lenspunch freezehit');
+  fam('text', 'pop slide blur type glitch stomp feed flip track scramble wave kin');
+  fam('shake', 'smooth hand twitchy jumpy impact hor ver rumble roll');
+  fam('twitch', 'tw-scale tw-slide tw-light tw-blur tw-time tw-full');
+  fam('speed', 'velocity slowkill speedup freeze rewind posterize marker beat ease');
+  fam('trans', 'zoom zoomout whip spin rgbshake whiteglitch popin stretch tflash');
+  fam('fx', 'flash grain rgb glow vhs vig letterbox lens leak cold warm punchy');
+  fam('styles', 'val cs2 neon double grad glitchs');
+
+  // Nouveaux presets sans vidéo : aperçu indicatif emprunté au preset v0.6 le plus proche (même famille de mouvement).
+  const has = (p, prim) => (p.recipe || []).some((s) => s.p === prim);
+  const step = (p, prim) => (p.recipe || []).find((s) => s.p === prim) || {};
+  const guess = (p) => {
+    const first = (p.recipe || [])[0] || {};
+    switch (p.cat) {
+      case 'text':
+        if (has(p, 'typewriter') || has(p, 'textCounter')) return 'type';
+        if (has(p, 'textKinetic')) return 'kin';
+        if (has(p, 'textWave')) return 'wave';
+        if (has(p, 'textRandom')) return step(p, 'textRandom').kind === 'scramble' ? 'scramble' : 'glitch';
+        if (has(p, 'textReveal')) {
+          const r = step(p, 'textReveal');
+          if (r.rotx !== undefined || r.roty !== undefined) return 'flip';
+          if (r.tracking !== undefined) return 'track';
+          if (r.blur !== undefined) return 'blur';
+          if (r.posy !== undefined || r.posx !== undefined) return 'slide';
+          return 'pop';
+        }
+        if (has(p, 'textFill')) return 'grad';
+        if (has(p, 'textShadow')) return { halo: 'neon', outline: 'double', offset: 'val', long: 'cs2', extrude: 'val' }[step(p, 'textShadow').kind] || 'val';
+        return 'pop';
+      case 'styles':
+        if (has(p, 'vignette') && p.recipe.length === 1) return 'vig';
+        if (has(p, 'grade') && step(p, 'grade').temp < 0) return 'cold';
+        if (has(p, 'grade') && step(p, 'grade').temp > 0) return 'warm';
+        return 'punchy';
+      case 'shake': {
+        const s = step(p, 'shake');
+        if (s.pattern === 'wiggle' || s.pattern === 'drunk') return s.freq > 2 ? 'hand' : 'smooth';
+        if (s.pattern === 'bursts') return 'twitchy';
+        if (s.pattern === 'jumps' || s.pattern === 'step') return 'jumpy';
+        if (s.pattern === 'rumble' || s.pattern === 'quake') return 'rumble';
+        if (s.pattern === 'roll' || s.axis === 'rot') return 'roll';
+        if (s.axis === 'x') return 'hor';
+        if (s.axis === 'y' || s.pattern === 'recoil') return 'ver';
+        return 'impact';
+      }
+      case 'twitch': {
+        if (has(p, 'timeRemap')) return 'tw-time';
+        const ch = step(p, 'twitch').channels || [];
+        if (ch.length > 2) return 'tw-full';
+        if (ch.includes('light')) return 'tw-light';
+        if (ch.includes('blur')) return 'tw-blur';
+        if (ch.includes('slide') || ch.includes('slidey') || ch.includes('rgb') || ch.includes('skew')) return 'tw-slide';
+        return 'tw-scale';
+      }
+      case 'speed': {
+        if (!has(p, 'timeRemap')) return 'posterize';
+        const sh = step(p, 'timeRemap').shape;
+        return { velocity: 'velocity', ramp: 'velocity', slowmo: 'slowkill', speedup: 'speedup', freeze: 'freeze', rewind: 'rewind', reverse: 'rewind', boomerang: 'rewind' }[sh] || 'posterize';
+      }
+      case 'trans': {
+        if (p.host === 'two') return 'popin';
+        if (has(p, 'blocks') || has(p, 'waveWarp') || has(p, 'pixelate')) return 'whiteglitch';
+        if (has(p, 'rgbSplit')) return 'rgbshake';
+        if (has(p, 'stretch')) return 'stretch';
+        const pu = step(p, 'punch');
+        if (pu.channel === 'rot') return 'spin';
+        if (pu.channel === 'posx' || pu.channel === 'posy') return 'whip';
+        if (pu.channel === 'scale') return pu.amount < 0 ? 'zoomout' : 'zoom';
+        return 'tflash';
+      }
+      case 'fx':
+        if (has(p, 'rgbSplit') && p.recipe.length === 1) return 'rgb';
+        if (has(p, 'scanlines')) return 'vhs';
+        if (has(p, 'lens') || has(p, 'mirror') || has(p, 'warp')) return 'lens';
+        if (has(p, 'particles') || has(p, 'lightLeak')) return 'leak';
+        return 'glow';
+      case 'hud':
+        if (has(p, 'grain')) return 'grain';
+        if (has(p, 'lightLeak')) return 'leak';
+        if (has(p, 'vignette')) return 'vig';
+        if (first.p === 'hud' && first.kind === 'letterbox') return 'letterbox';
+        return 'feed';
+      case 'cam3d': return has(p, 'parallax') && !has(p, 'camera') ? 'lens' : 'zoom';
+      default: {
+        if (has(p, 'timeRemap')) return 'freezehit';
+        if (first.p === 'textLayer' || first.p === 'hud') return 'flash';
+        if (has(p, 'flash')) return 'flash';
+        if (has(p, 'glow') || has(p, 'rays') || has(p, 'flare')) return 'glowhit';
+        if (has(p, 'lens') || has(p, 'warp') || has(p, 'mirror')) return 'lenspunch';
+        if (has(p, 'rgbSplit') || has(p, 'blocks')) return 'rgbpunch';
+        if (has(p, 'posterizeTime') || has(p, 'pixelate')) return 'choppy';
+        if (has(p, 'invert') || has(p, 'ink') || has(p, 'exposure')) return 'flicker';
+        if (has(p, 'punch')) return 'hspop';
+        if (has(p, 'shake') && step(p, 'shake').axis === 'y') return 'bassdrop';
+        return 'killhit';
+      }
+    }
+  };
+  const proxyOf = (p) => {
+    if (LEGACY[p.id]) return Object.assign({}, p, { cat: LEGACY[p.id] });
+    const id = guess(p);
+    return Object.assign({}, p, { id, cat: LEGACY[id] || 'impacts' });
+  };
+
   // Contenu d'une vignette : vidéo si disponible, sinon animation CSS ; + coins de viseur + état d'application.
+  // Vidéos : preload="none", lues au survol seulement (ou en lecture auto si tu l'as choisi dans les réglages).
   const inner = (p, curve, checkIcon) => {
-    const video = YX.store && YX.store.previewUrl ? YX.store.previewUrl(p.id) : null;
-    const body = video ? `${bg()}<video class="pvv" src="${esc(video)}" muted loop playsinline autoplay></video>` : PV[p.cat](p, curve);
+    const st = YX.store || {};
+    const video = st.previewUrl ? st.previewUrl(p.id) : null;
+    const poster = st.posterUrl ? st.posterUrl(p.id) : null;
+    const q = proxyOf(p);
+    const body = video ? `${bg()}<video class="pvv" src="${esc(video)}"${poster ? ` poster="${esc(poster)}"` : ''} muted loop playsinline preload="none"></video>`
+      : poster ? `${bg()}<img class="pvv still" src="${esc(poster)}" alt="" loading="lazy">`
+      : (PV[q.cat] || pvImpact)(q, curve);
     return body + `<span class="br"></span><div class="state"><span class="ring"></span><span class="ok">${checkIcon}</span></div>`;
   };
+  const isIndicative = (p) => !LEGACY[p.id] && !(YX.store && YX.store.previewUrl && (YX.store.previewUrl(p.id) || (YX.store.posterUrl && YX.store.posterUrl(p.id))));
 
   // Typewriter et scramble : animés en JS (texte qui change).
   const GLYPHS = '!<>-_\\/[]{}=+*^?#ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
@@ -157,5 +273,5 @@
     requestAnimationFrame(loop);
   };
 
-  YX.previews = { inner, curveD, elasticF, startTickers, esc };
+  YX.previews = { inner, curveD, elasticF, startTickers, esc, isIndicative, proxyOf };
 })();
